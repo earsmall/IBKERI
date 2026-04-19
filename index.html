@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>한국 중소기업 요약노트</title>
+    <meta
+      name="description"
+      content="핵심 중소기업 통계를 한눈에!"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta property="og:title" content="한국 중소기업 요약노트" />
+    <meta
+      property="og:description"
+      content="핵심 중소기업 통계를 한눈에!"
+    />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="한국 중소기업 요약노트" />
+    <meta
+      name="twitter:description"
+      content="핵심 중소기업 통계를 한눈에!"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css?v=20260419ac" />
+  </head>
+  <body>
+    <main class="phone-shell">
+      <section class="app-frame">
+        <section class="home-screen" id="home-screen">
+          <div class="home-screen-inner">
+            <p class="brand-kicker home-screen-brand">IBK경제연구소 중기산업연구실 중소기업팀</p>
+            <h1 class="home-screen-title">한국 중소기업 요약노트</h1>
+            <div class="home-screen-copy-box">
+              <p class="home-screen-copy">영역별 중소기업 최신 통계를 자동으로 수집하여<br />현황과 추이, 특징을 요약적으로 제공합니다.</p>
+            </div>
+            <div class="home-screen-notes">
+              <p class="home-screen-notes-title">&lt;참고&gt;</p>
+              <p class="home-screen-note">- 경기 및 금융(대출, 투자) 통계는 월간, 분기별 통계</p>
+              <p class="home-screen-note">- 위상, 경영지표, 수출, 창업은 연간 통계</p>
+              <p class="home-screen-note">- 실물경기, 체감경기는 최근 통계 기준 3년 표시</p>
+            </div>
+            <div class="home-screen-grid">
+              <button class="home-screen-button" type="button" data-home-tab="sme">위상</button>
+              <button class="home-screen-button" type="button" data-home-tab="business">실물경기</button>
+              <button class="home-screen-button" type="button" data-home-tab="feeling">체감경기</button>
+              <button class="home-screen-button" type="button" data-home-tab="management">경영지표</button>
+              <button class="home-screen-button" type="button" data-home-tab="loan">대출</button>
+              <button class="home-screen-button" type="button" data-home-tab="investment">투자</button>
+              <button class="home-screen-button" type="button" data-home-tab="export">수출</button>
+              <button class="home-screen-button" type="button" data-home-tab="startup">창업</button>
+            </div>
+          </div>
+        </section>
+        <header class="app-header">
+          <div class="topbar">
+            <div>
+              <p class="brand-kicker">IBK경제연구소 중기산업연구실 중소기업팀</p>
+              <div class="title-row">
+                <h1>한국 중소기업 요약노트</h1>
+                <button class="home-nav-button" id="home-nav-button" type="button">Home</button>
+              </div>
+            </div>
+          </div>
+
+          <nav class="tab-strip" aria-label="대시보드 탭">
+            <button class="tab-button is-active" type="button" data-tab="sme">위상</button>
+            <button class="tab-button" type="button" data-tab="business">실물경기</button>
+            <button class="tab-button" type="button" data-tab="feeling">체감경기</button>
+            <button class="tab-button" type="button" data-tab="management">경영지표</button>
+            <button class="tab-button" type="button" data-tab="loan">대출</button>
+            <button class="tab-button" type="button" data-tab="investment">투자</button>
+            <button class="tab-button" type="button" data-tab="export">수출</button>
+            <button class="tab-button" type="button" data-tab="startup">창업</button>
+          </nav>
+        </header>
+
+        <section class="tab-panel is-active" data-panel="sme">
+          <div class="info-section">
+            <p class="section-subcopy section-subcopy--center">자료: 중소벤처기업부 《중소기업 기본통계》</p>
+            <div class="section-head-actions section-head-actions--inline section-head-actions--center sme-toolbar">
+              <span class="inline-select-label">기준시점</span>
+              <select id="sme-year-select" class="year-select"></select>
+            </div>
+            <div class="sme-grid" id="sme-grid"></div>
+            <div class="sme-charts" id="sme-charts"></div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="startup">
+          <div class="info-section">
+            <p class="section-subcopy section-subcopy--center">자료: 중소벤처기업부 《창업기업동향》</p>
+            <div class="section-head-actions section-head-actions--inline section-head-actions--center">
+              <span class="inline-select-label">기준시점</span>
+              <select id="startup-year-select" class="year-select"></select>
+            </div>
+            <div class="startup-summary" id="startup-summary"></div>
+            <div class="startup-charts" id="startup-charts"></div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="business">
+          <div class="info-section">
+            <div class="section-head business-topbar">
+              <div class="business-head-main">
+                <h2>중소기업 경기동행종합지수</h2>
+                <p class="section-subcopy">자료: 국가데이터처 《중소기업 경기동행종합지수》</p>
+              </div>
+              <div class="business-inline-summary" id="business-summary"></div>
+              <div class="section-head-actions business-range-controls">
+                <div class="business-range-label" id="business-range-label"></div>
+                <div class="dual-range-wrap" id="business-range-track">
+                  <input id="business-range-start" class="range-slider range-slider--start" type="range" />
+                  <input id="business-range-end" class="range-slider range-slider--end" type="range" />
+                </div>
+                <div class="dual-range-meta">
+                  <span id="business-range-start-text"></span>
+                  <span id="business-range-end-text"></span>
+                </div>
+              </div>
+            </div>
+            <div class="business-panel-layout">
+              <div class="business-panel-charts" id="business-charts"></div>
+            </div>
+            <div class="section-head section-head-secondary business-topbar">
+              <div class="business-head-main">
+                <h2>중소기업 생산지수</h2>
+                <p class="section-subcopy">자료: 국가데이터처</p>
+              </div>
+              <div class="business-inline-summary" id="production-summary"></div>
+              <div class="section-head-actions business-range-controls">
+                <div class="business-range-label" id="production-range-label"></div>
+                <div class="dual-range-wrap" id="production-range-track">
+                  <input id="production-range-start" class="range-slider range-slider--start" type="range" />
+                  <input id="production-range-end" class="range-slider range-slider--end" type="range" />
+                </div>
+                <div class="dual-range-meta">
+                  <span id="production-range-start-text"></span>
+                  <span id="production-range-end-text"></span>
+                </div>
+              </div>
+            </div>
+            <div class="business-panel-layout">
+              <div class="business-panel-charts business-panel-charts--split" id="production-charts"></div>
+            </div>
+            <div class="section-head section-head-secondary business-topbar">
+              <div class="business-head-main">
+                <h2>중소제조업 평균가동률</h2>
+                <p class="section-subcopy">자료: 국가데이터처</p>
+              </div>
+              <div class="business-inline-summary" id="operation-summary"></div>
+              <div class="section-head-actions business-range-controls">
+                <div class="business-range-label" id="operation-range-label"></div>
+                <div class="dual-range-wrap" id="operation-range-track">
+                  <input id="operation-range-start" class="range-slider range-slider--start" type="range" />
+                  <input id="operation-range-end" class="range-slider range-slider--end" type="range" />
+                </div>
+                <div class="dual-range-meta">
+                  <span id="operation-range-start-text"></span>
+                  <span id="operation-range-end-text"></span>
+                </div>
+              </div>
+            </div>
+            <div class="business-panel-layout">
+              <div class="business-panel-charts" id="operation-charts"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="feeling">
+          <div class="info-section">
+            <div class="section-head section-head-secondary">
+              <div>
+                <h2>중소기업 BSI 체감경기</h2>
+                <p class="section-subcopy">자료: 한국은행 《기업경기조사》</p>
+              </div>
+            </div>
+            <div class="section-head-actions section-head-actions--inline section-head-actions--center">
+              <span class="inline-select-label">BSI코드</span>
+              <select id="feeling-bsi-select" class="year-select"></select>
+            </div>
+            <div class="section-head section-head-secondary business-topbar">
+              <div class="business-head-main">
+              </div>
+              <div class="business-inline-summary" id="feeling-summary"></div>
+              <div class="section-head-actions business-range-controls">
+                <div class="business-range-label" id="feeling-range-label"></div>
+                <div class="dual-range-wrap" id="feeling-range-track">
+                  <input id="feeling-range-start" class="range-slider range-slider--start" type="range" />
+                  <input id="feeling-range-end" class="range-slider range-slider--end" type="range" />
+                </div>
+                <div class="dual-range-meta">
+                  <span id="feeling-range-start-text"></span>
+                  <span id="feeling-range-end-text"></span>
+                </div>
+              </div>
+            </div>
+            <div class="business-panel-layout">
+              <div class="business-panel-charts business-panel-charts--split" id="feeling-charts"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="management">
+          <div class="info-section">
+            <p class="section-subcopy section-subcopy--center">자료: 한국은행 《기업경영분석》</p>
+            <div class="management-header">
+              <div class="management-section-label">전산업 vs 대기업 vs 중소기업</div>
+              <div class="section-head-actions section-head-actions--inline section-head-actions--center">
+                <span class="inline-select-label">기준시점</span>
+                <select id="management-year-select" class="year-select"></select>
+              </div>
+            </div>
+            <div class="management-grid" id="management-bar-charts"></div>
+            <div class="management-controls">
+              <div class="section-head section-head-secondary management-trend-section-head">
+                <div>
+                  <h2>연간 추이</h2>
+                </div>
+              </div>
+              <div class="management-controls-range">
+                <div class="business-range-label" id="management-range-label"></div>
+                <div class="dual-range-wrap" id="management-range-track">
+                  <input id="management-range-start" class="range-slider range-slider--start" type="range" />
+                  <input id="management-range-end" class="range-slider range-slider--end" type="range" />
+                </div>
+                <div class="dual-range-meta">
+                  <span id="management-range-start-text"></span>
+                  <span id="management-range-end-text"></span>
+                </div>
+              </div>
+              <div class="management-category-filters" id="management-category-filters">
+                <label class="management-filter-pill">
+                  <input type="checkbox" value="종합" checked />
+                  <span class="management-filter-box" aria-hidden="true"></span>
+                  <span>전산업</span>
+                </label>
+                <label class="management-filter-pill">
+                  <input type="checkbox" value="대기업" checked />
+                  <span class="management-filter-box" aria-hidden="true"></span>
+                  <span>대기업</span>
+                </label>
+                <label class="management-filter-pill">
+                  <input type="checkbox" value="중소기업" checked />
+                  <span class="management-filter-box" aria-hidden="true"></span>
+                  <span>중소기업</span>
+                </label>
+              </div>
+            </div>
+            <div class="management-grid" id="management-trend-charts"></div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="loan">
+          <div class="info-section">
+            <div class="section-head section-head-secondary business-topbar">
+              <div class="business-head-main">
+                <h2>은행권 중소기업대출</h2>
+                <p class="section-subcopy">자료: 한국은행</p>
+              </div>
+              <div class="business-inline-summary" id="loan-summary"></div>
+              <div class="section-head-actions business-range-controls">
+                <div class="business-range-label" id="loan-range-label"></div>
+                <div class="dual-range-wrap" id="loan-range-track">
+                  <input id="loan-range-start" class="range-slider range-slider--start" type="range" />
+                  <input id="loan-range-end" class="range-slider range-slider--end" type="range" />
+                </div>
+                <div class="dual-range-meta">
+                  <span id="loan-range-start-text"></span>
+                  <span id="loan-range-end-text"></span>
+                </div>
+              </div>
+            </div>
+            <div class="business-panel-layout">
+              <div class="business-panel-charts business-panel-charts--split" id="loan-charts"></div>
+            </div>
+            <div class="section-head section-head-secondary business-topbar loan-panel-separator">
+              <div class="business-head-main">
+                <h2>연체율</h2>
+                <p class="section-subcopy">자료: 금융감독원</p>
+              </div>
+              <div class="business-inline-summary" id="loan-delinquency-summary"></div>
+              <div class="section-head-actions business-range-controls">
+                <div class="business-range-label" id="delinquency-range-label"></div>
+                <div class="dual-range-wrap" id="delinquency-range-track">
+                  <input id="delinquency-range-start" class="range-slider range-slider--start" type="range" />
+                  <input id="delinquency-range-end" class="range-slider range-slider--end" type="range" />
+                </div>
+                <div class="dual-range-meta">
+                  <span id="delinquency-range-start-text"></span>
+                  <span id="delinquency-range-end-text"></span>
+                </div>
+              </div>
+            </div>
+            <div class="business-panel-layout">
+              <div class="business-panel-charts business-panel-charts--split" id="loan-delinquency-charts"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="investment">
+          <div class="info-section">
+            <p class="section-subcopy section-subcopy--center">자료: 중소벤처기업부, 한국벤처캐피탈협회</p>
+            <div class="section-head-actions section-head-actions--inline section-head-actions--center">
+              <span class="inline-select-label">기준시점</span>
+              <select id="investment-date-select" class="year-select"></select>
+            </div>
+            <div class="section-head">
+              <div>
+                <h2>벤처투자</h2>
+              </div>
+            </div>
+            <div class="startup-summary" id="investment-summary"></div>
+            <div class="startup-charts" id="investment-charts"></div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="export">
+          <div class="info-section">
+            <p class="section-subcopy section-subcopy--center">자료: 국가데이터처 《기업특성별무역통계》</p>
+            <div class="section-head-actions section-head-actions--inline section-head-actions--center">
+              <span class="inline-select-label">기준시점</span>
+              <select id="export-date-select" class="year-select"></select>
+            </div>
+            <div class="section-head">
+              <div>
+                <h2>중소기업 수출</h2>
+              </div>
+            </div>
+            <div class="startup-summary" id="export-summary"></div>
+            <div class="startup-charts" id="export-charts"></div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./data/dashboard-data.js?v=20260417i"></script>
+    <script src="./script.js?v=20260419x"></script>
+  </body>
+</html>
