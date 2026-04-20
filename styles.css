@@ -494,6 +494,7 @@ h2 {
 
 .feeling-select-wrap {
   margin-top: 12px;
+  justify-content: center;
 }
 
 .year-select-label {
@@ -791,6 +792,10 @@ h2 {
   min-width: 0;
 }
 
+.loan-charts-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .business-panel-charts .startup-chart-card {
   height: 100%;
 }
@@ -808,6 +813,44 @@ h2 {
 
 .loan-panel-separator {
   margin-top: 24px;
+}
+
+.loan-delinquency-controls {
+  margin-top: 12px;
+  justify-content: center;
+}
+
+.loan-delinquency-controls .business-range-controls {
+  justify-self: center;
+  margin-inline: auto;
+}
+
+#feeling-summary {
+  width: min(100%, 680px);
+}
+
+.feeling-range-controls {
+  margin-top: 12px;
+  justify-content: center;
+}
+
+.feeling-range-controls .business-range-controls {
+  justify-self: center;
+  margin-inline: auto;
+}
+
+.business-range-controls-center {
+  margin-top: 12px;
+  justify-content: center;
+}
+
+.business-range-controls-center .business-range-controls {
+  justify-self: center;
+  margin-inline: auto;
+}
+
+#loan-delinquency-charts .startup-chart-summary {
+  display: none;
 }
 
 .management-controls {
@@ -989,6 +1032,107 @@ h2 {
   align-items: start;
 }
 
+.loan-topbar {
+  display: grid;
+  justify-items: center;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: center;
+}
+
+.loan-topbar > * {
+  justify-self: center;
+  margin-inline: auto;
+}
+
+.loan-topbar .business-head-main {
+  justify-self: center;
+  justify-items: center;
+  width: 100%;
+  text-align: center;
+}
+
+.loan-topbar .business-head-main h2,
+.loan-topbar .business-head-main .section-subcopy {
+  width: 100%;
+  text-align: center;
+}
+
+.loan-topbar .business-inline-summary {
+  justify-self: center;
+  margin-inline: auto;
+}
+
+#loan-summary,
+#loan-delinquency-summary,
+#business-summary,
+#production-summary,
+#operation-summary {
+  width: min(100%, 680px);
+}
+
+.feeling-topbar {
+  display: grid;
+  justify-items: center;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: center;
+}
+
+.feeling-topbar > * {
+  justify-self: center;
+  margin-inline: auto;
+}
+
+.feeling-topbar .business-head-main {
+  justify-self: center;
+  justify-items: center;
+  width: 100%;
+  text-align: center;
+}
+
+.feeling-topbar .business-head-main h2,
+.feeling-topbar .business-head-main .section-subcopy,
+.feeling-topbar .business-inline-summary {
+  width: min(100%, 680px);
+  text-align: center;
+}
+
+.sme-topbar {
+  display: grid;
+  justify-items: center;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: center;
+}
+
+.sme-topbar > * {
+  justify-self: center;
+  margin-inline: auto;
+}
+
+.sme-topbar .business-head-main,
+.sme-topbar .sme-toolbar {
+  width: min(100%, 680px);
+  text-align: center;
+}
+
+.sme-topbar .business-head-main {
+  justify-self: center;
+  justify-items: center;
+}
+
+#loan-summary,
+#loan-delinquency-summary {
+  width: min(100%, 680px);
+}
+
 .business-inline-summary {
   min-width: 0;
   padding: 12px 16px;
@@ -1064,11 +1208,62 @@ h2 {
   align-items: stretch;
 }
 
+.loan-range-controls {
+  min-width: 0;
+  max-width: none;
+  width: 100%;
+}
+
+.loan-range-controls--month {
+  align-items: flex-start;
+}
+
+.loan-range-controls--year {
+  align-items: flex-end;
+}
+
+.loan-panel-layout {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.loan-panel-control {
+  width: min(100%, 320px);
+  min-width: 0;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.loan-panel-control .business-range-label,
+.loan-panel-control .dual-range-meta {
+  width: 100%;
+}
+
+.loan-panel-control .business-range-label {
+  text-align: center;
+}
+
+.loan-panel-layout .business-panel-charts {
+  width: 100%;
+}
+
 .business-range-label {
   color: var(--muted-strong);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.4;
+}
+
+.range-label-prefix,
+.range-label-period {
+  display: block;
+}
+
+.range-label-prefix {
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .dual-range-wrap {
@@ -1293,8 +1488,8 @@ h2 {
   grid-template-columns: repeat(var(--bar-count, 1), minmax(0, 1fr));
   gap: 10px;
   align-items: end;
-  margin-top: 16px;
-  min-height: 152px;
+  margin-top: 12px;
+  min-height: 128px;
 }
 
 .startup-bar-item {
@@ -1313,7 +1508,7 @@ h2 {
 }
 
 .startup-bar-track {
-  height: 120px;
+  height: 104px;
   display: flex;
   align-items: end;
   justify-content: center;
@@ -1334,6 +1529,43 @@ h2 {
   font-size: 11px;
   font-weight: 700;
   text-align: center;
+}
+
+.startup-chart-card--loan-bar {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 10px;
+}
+
+.startup-chart-card--loan-bar .startup-bars {
+  flex: 1 1 auto;
+  align-content: end;
+  margin-top: 8px;
+  min-height: 0;
+  height: 100%;
+}
+
+.startup-chart-card--loan-bar .startup-bar-track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  min-height: 220px;
+  height: auto;
+  padding: 0 2px;
+}
+
+.startup-chart-card--loan-bar .startup-bar {
+  max-width: 36px;
+}
+
+.startup-chart-card--loan-bar .startup-bar-item {
+  height: 100%;
+}
+
+.startup-chart-card--loan-bar .startup-bar-value {
+  margin-bottom: 8px;
 }
 
 .startup-line-chart {
@@ -2041,6 +2273,72 @@ h2 {
     justify-self: end;
   }
 
+  .loan-topbar {
+    grid-template-columns: 320px minmax(560px, 680px) 320px;
+    justify-items: center;
+    justify-content: center;
+    column-gap: 20px;
+  }
+
+  .loan-topbar .business-head-main {
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
+
+  .loan-topbar .business-inline-summary {
+    justify-self: center;
+    width: min(100%, 680px);
+    grid-column: 2;
+  }
+
+  .feeling-topbar {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    justify-content: center;
+    column-gap: 0;
+  }
+
+  .feeling-topbar .business-head-main,
+  .feeling-topbar .business-inline-summary,
+  .feeling-topbar .feeling-select-wrap {
+    grid-column: 1;
+    justify-self: center;
+  }
+
+  .loan-panel-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    align-items: stretch;
+    justify-items: stretch;
+  }
+
+  .loan-panel-control {
+    align-self: start;
+    width: 320px;
+    min-width: 320px;
+    max-width: 320px;
+    margin: 0;
+  }
+
+  .loan-panel-control.loan-range-controls--month {
+    grid-column: 1;
+    justify-self: center;
+    grid-row: 2;
+  }
+
+  .loan-panel-control.loan-range-controls--year {
+    grid-column: 3;
+    justify-self: center;
+    grid-row: 2;
+  }
+
+  .loan-panel-layout .business-panel-charts {
+    grid-column: 1;
+    justify-self: stretch;
+    width: 100%;
+    max-width: none;
+  }
+
   .business-summary-inline-grid {
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
@@ -2054,6 +2352,24 @@ h2 {
   .business-panel-charts--split {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
+  }
+
+  .loan-charts-grid {
+    width: 100%;
+    grid-template-columns: repeat(11, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .loan-charts-grid > :nth-child(1) {
+    grid-column: 2 / 5;
+  }
+
+  .loan-charts-grid > :nth-child(2) {
+    grid-column: 5 / 8;
+  }
+
+  .loan-charts-grid > :nth-child(3) {
+    grid-column: 8 / 11;
   }
 
   .management-grid {
@@ -2220,6 +2536,38 @@ h2 {
     grid-template-columns: 1fr minmax(0, 3fr) 1fr;
   }
 
+  .loan-panel-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    align-items: stretch;
+    justify-items: stretch;
+  }
+
+  .loan-panel-layout .business-panel-charts {
+    grid-column: 1;
+    width: 100%;
+    max-width: none;
+    justify-self: stretch;
+  }
+
+  .loan-charts-grid {
+    width: 100%;
+    grid-template-columns: repeat(11, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .loan-charts-grid > :nth-child(1) {
+    grid-column: 2 / 5;
+  }
+
+  .loan-charts-grid > :nth-child(2) {
+    grid-column: 5 / 8;
+  }
+
+  .loan-charts-grid > :nth-child(3) {
+    grid-column: 8 / 11;
+  }
+
   .startup-charts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2347,6 +2695,38 @@ h2 {
   .business-panel-layout {
     grid-template-columns: 1fr minmax(0, 3fr) 1fr;
     gap: 16px;
+  }
+
+  .loan-panel-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    align-items: stretch;
+    justify-items: stretch;
+  }
+
+  .loan-panel-layout .business-panel-charts {
+    grid-column: 1;
+    width: 100%;
+    max-width: none;
+    justify-self: stretch;
+  }
+
+  .loan-charts-grid {
+    width: 100%;
+    grid-template-columns: repeat(11, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .loan-charts-grid > :nth-child(1) {
+    grid-column: 2 / 5;
+  }
+
+  .loan-charts-grid > :nth-child(2) {
+    grid-column: 5 / 8;
+  }
+
+  .loan-charts-grid > :nth-child(3) {
+    grid-column: 8 / 11;
   }
 
   .sme-charts {

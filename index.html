@@ -82,10 +82,15 @@
 
         <section class="tab-panel is-active" data-panel="sme">
           <div class="info-section">
-            <p class="section-subcopy section-subcopy--center">자료: 중소벤처기업부 《중소기업 기본통계》</p>
-            <div class="section-head-actions section-head-actions--inline section-head-actions--center sme-toolbar">
-              <span class="inline-select-label">기준시점</span>
-              <select id="sme-year-select" class="year-select"></select>
+            <div class="section-head section-head-secondary sme-topbar">
+              <div class="business-head-main">
+                <h2>중소기업 기본통계</h2>
+                <p class="section-subcopy section-subcopy--center">자료: 중소벤처기업부 《중소기업 기본통계》</p>
+              </div>
+              <div class="section-head-actions section-head-actions--inline section-head-actions--center sme-toolbar">
+                <span class="inline-select-label">기준시점</span>
+                <select id="sme-year-select" class="year-select"></select>
+              </div>
             </div>
             <div class="sme-grid" id="sme-grid"></div>
             <div class="sme-charts" id="sme-charts"></div>
@@ -106,13 +111,15 @@
 
         <section class="tab-panel" data-panel="business">
           <div class="info-section">
-            <div class="section-head business-topbar">
+            <div class="section-head loan-topbar">
               <div class="business-head-main">
                 <h2>중소기업 경기동행종합지수</h2>
                 <p class="section-subcopy">자료: 국가데이터처 《중소기업 경기동행종합지수》</p>
               </div>
               <div class="business-inline-summary" id="business-summary"></div>
-              <div class="section-head-actions business-range-controls">
+            </div>
+            <div class="section-head-actions section-head-actions--center business-range-controls-center">
+              <div class="business-range-controls">
                 <div class="business-range-label" id="business-range-label"></div>
                 <div class="dual-range-wrap" id="business-range-track">
                   <input id="business-range-start" class="range-slider range-slider--start" type="range" />
@@ -127,13 +134,15 @@
             <div class="business-panel-layout">
               <div class="business-panel-charts" id="business-charts"></div>
             </div>
-            <div class="section-head section-head-secondary business-topbar">
+            <div class="section-head section-head-secondary loan-topbar">
               <div class="business-head-main">
                 <h2>중소기업 생산지수</h2>
                 <p class="section-subcopy">자료: 국가데이터처</p>
               </div>
               <div class="business-inline-summary" id="production-summary"></div>
-              <div class="section-head-actions business-range-controls">
+            </div>
+            <div class="section-head-actions section-head-actions--center business-range-controls-center">
+              <div class="business-range-controls">
                 <div class="business-range-label" id="production-range-label"></div>
                 <div class="dual-range-wrap" id="production-range-track">
                   <input id="production-range-start" class="range-slider range-slider--start" type="range" />
@@ -148,13 +157,15 @@
             <div class="business-panel-layout">
               <div class="business-panel-charts business-panel-charts--split" id="production-charts"></div>
             </div>
-            <div class="section-head section-head-secondary business-topbar">
+            <div class="section-head section-head-secondary loan-topbar">
               <div class="business-head-main">
                 <h2>중소제조업 평균가동률</h2>
                 <p class="section-subcopy">자료: 국가데이터처</p>
               </div>
               <div class="business-inline-summary" id="operation-summary"></div>
-              <div class="section-head-actions business-range-controls">
+            </div>
+            <div class="section-head-actions section-head-actions--center business-range-controls-center">
+              <div class="business-range-controls">
                 <div class="business-range-label" id="operation-range-label"></div>
                 <div class="dual-range-wrap" id="operation-range-track">
                   <input id="operation-range-start" class="range-slider range-slider--start" type="range" />
@@ -174,21 +185,19 @@
 
         <section class="tab-panel" data-panel="feeling">
           <div class="info-section">
-            <div class="section-head section-head-secondary">
-              <div>
+            <div class="section-head section-head-secondary feeling-topbar">
+              <div class="business-head-main">
                 <h2>중소기업 BSI 체감경기</h2>
                 <p class="section-subcopy">자료: 한국은행 《기업경기조사》</p>
               </div>
-            </div>
-            <div class="section-head-actions section-head-actions--inline section-head-actions--center">
-              <span class="inline-select-label">BSI코드</span>
-              <select id="feeling-bsi-select" class="year-select"></select>
-            </div>
-            <div class="section-head section-head-secondary business-topbar">
-              <div class="business-head-main">
+              <div class="section-head-actions section-head-actions--inline section-head-actions--center feeling-select-wrap">
+                <span class="inline-select-label">BSI코드</span>
+                <select id="feeling-bsi-select" class="year-select"></select>
               </div>
               <div class="business-inline-summary" id="feeling-summary"></div>
-              <div class="section-head-actions business-range-controls">
+            </div>
+            <div class="section-head-actions section-head-actions--center feeling-range-controls">
+              <div class="business-range-controls">
                 <div class="business-range-label" id="feeling-range-label"></div>
                 <div class="dual-range-wrap" id="feeling-range-track">
                   <input id="feeling-range-start" class="range-slider range-slider--start" type="range" />
@@ -258,13 +267,12 @@
 
         <section class="tab-panel" data-panel="loan">
           <div class="info-section">
-            <div class="section-head section-head-secondary business-topbar">
+            <div class="section-head section-head-secondary loan-topbar">
               <div class="business-head-main">
                 <h2>은행권 중소기업대출</h2>
                 <p class="section-subcopy">자료: 한국은행</p>
               </div>
-              <div class="business-inline-summary" id="loan-summary"></div>
-              <div class="section-head-actions business-range-controls">
+              <div class="business-range-controls loan-range-controls loan-range-controls--month loan-panel-control">
                 <div class="business-range-label" id="loan-range-label"></div>
                 <div class="dual-range-wrap" id="loan-range-track">
                   <input id="loan-range-start" class="range-slider range-slider--start" type="range" />
@@ -275,17 +283,31 @@
                   <span id="loan-range-end-text"></span>
                 </div>
               </div>
+              <div class="business-inline-summary" id="loan-summary"></div>
+              <div class="business-range-controls loan-range-controls loan-range-controls--year loan-panel-control">
+                <div class="business-range-label" id="loan-year-range-label"></div>
+                <div class="dual-range-wrap" id="loan-year-range-track">
+                  <input id="loan-year-range-start" class="range-slider range-slider--start" type="range" />
+                  <input id="loan-year-range-end" class="range-slider range-slider--end" type="range" />
+                </div>
+                <div class="dual-range-meta">
+                  <span id="loan-year-range-start-text"></span>
+                  <span id="loan-year-range-end-text"></span>
+                </div>
+              </div>
             </div>
-            <div class="business-panel-layout">
-              <div class="business-panel-charts business-panel-charts--split" id="loan-charts"></div>
+            <div class="business-panel-layout loan-panel-layout">
+              <div class="business-panel-charts loan-charts-grid" id="loan-charts"></div>
             </div>
-            <div class="section-head section-head-secondary business-topbar loan-panel-separator">
+            <div class="section-head section-head-secondary loan-topbar loan-panel-separator">
               <div class="business-head-main">
                 <h2>연체율</h2>
                 <p class="section-subcopy">자료: 금융감독원</p>
               </div>
               <div class="business-inline-summary" id="loan-delinquency-summary"></div>
-              <div class="section-head-actions business-range-controls">
+            </div>
+            <div class="section-head-actions section-head-actions--center loan-delinquency-controls">
+              <div class="business-range-controls">
                 <div class="business-range-label" id="delinquency-range-label"></div>
                 <div class="dual-range-wrap" id="delinquency-range-track">
                   <input id="delinquency-range-start" class="range-slider range-slider--start" type="range" />

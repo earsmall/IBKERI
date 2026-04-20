@@ -132,6 +132,8 @@ let delinquencySeries = [];
 let loanYears = [];
 let loanRangeStart = "";
 let loanRangeEnd = "";
+let loanYearRangeStart = "";
+let loanYearRangeEnd = "";
 let delinquencyRangeStart = "";
 let delinquencyRangeEnd = "";
 let investmentSeries = [];
@@ -1779,12 +1781,28 @@ function formatYearMonth(date) {
   }).format(date);
 }
 
+function formatYearLabel(value) {
+  if (!value && value !== 0) {
+    return "";
+  }
+
+  return `${value}년`;
+}
+
 function formatLoanValue(value) {
   if (value === undefined || value === null || Number.isNaN(value)) {
     return "-";
   }
 
   return `${formatNumber(value, 1)}<span class="sme-value-unit">조원</span>`;
+}
+
+function formatLoanNumberOnly(value) {
+  if (value === undefined || value === null || Number.isNaN(value)) {
+    return "-";
+  }
+
+  return formatNumber(value, 1);
 }
 
 function formatRateValue(value) {
@@ -2578,6 +2596,49 @@ function getRecentLoanNetIncreaseLatestMonthPoints() {
     .slice(-3);
 }
 
+function getLoanAnnualNetIncreasePointsByLatestMonth() {
+  const selectedYear = getLoanSelectedYear();
+  const selectedYearLatestPoint = getLoanLatestPointForYear(selectedYear);
+  if (!selectedYearLatestPoint) {
+    return [];
+  }
+
+  return loanYears
+    .filter((year) => year <= selectedYear)
+    .map((year) => {
+      const sameMonthPoint = loanSeries.find(
+        (item) => item.year === year && item.month === selectedYearLatestPoint.month,
+      );
+      return sameMonthPoint || null;
+    })
+    .filter(Boolean);
+}
+
+function getLoanAnnualNetIncreasePointsByYearEnd() {
+  return loanYears
+    .map((year) => {
+      const yearEndPoint = loanSeries.find((item) => item.year === year && item.month === 12);
+      return yearEndPoint || null;
+    })
+    .filter(Boolean);
+}
+
+function getLoanAnnualChartYearKeys() {
+  const yearSet = new Set([
+    ...getLoanAnnualNetIncreasePointsByYearEnd().map((item) => String(item.year)),
+    ...getLoanAnnualNetIncreasePointsByLatestMonth().map((item) => String(item.year)),
+  ]);
+
+  return Array.from(yearSet).sort((a, b) => Number(a) - Number(b));
+}
+
+function getFilteredLoanAnnualSeries(points) {
+  return points.filter((item) => {
+    const key = String(item.year);
+    return (!loanYearRangeStart || key >= loanYearRangeStart) && (!loanYearRangeEnd || key <= loanYearRangeEnd);
+  });
+}
+
 function getPreviousYearSameMonthLoanPoint(referenceDate) {
   if (!referenceDate) {
     return null;
@@ -2639,6 +2700,7 @@ function initLoanRangeControls() {
     endValue: loanRangeEnd,
     defaultCount: 36,
     formatLabel: formatBusinessPeriod,
+    labelPrefix: "잔액 그래프 표시 기간",
     onChange: (start, end) => {
       loanRangeStart = start;
       loanRangeEnd = end;
@@ -2652,6 +2714,33 @@ function initLoanRangeControls() {
   });
   loanRangeStart = normalizedLoan.start;
   loanRangeEnd = normalizedLoan.end;
+
+  const loanYearKeys = getLoanAnnualChartYearKeys();
+  const normalizedLoanYear = syncRangeSliderPair({
+    startId: "loan-year-range-start",
+    endId: "loan-year-range-end",
+    labelId: "loan-year-range-label",
+    trackId: "loan-year-range-track",
+    startTextId: "loan-year-range-start-text",
+    endTextId: "loan-year-range-end-text",
+    keys: loanYearKeys,
+    startValue: loanYearRangeStart,
+    endValue: loanYearRangeEnd,
+    defaultCount: Math.max(loanYearKeys.length, 1),
+    formatLabel: formatYearLabel,
+    labelPrefix: "순증 그래프 표시 기간",
+    onChange: (start, end) => {
+      loanYearRangeStart = start;
+      loanYearRangeEnd = end;
+      const normalized = normalizeRangeSelection(loanYearKeys, loanYearRangeStart, loanYearRangeEnd, loanYearKeys.length);
+      loanYearRangeStart = normalized.start;
+      loanYearRangeEnd = normalized.end;
+      initLoanRangeControls();
+      renderLoanCharts();
+    },
+  });
+  loanYearRangeStart = normalizedLoanYear.start;
+  loanYearRangeEnd = normalizedLoanYear.end;
 
   const delinquencyKeys = delinquencySeries.map((item) => getLoanMonthKey(item)).filter(Boolean);
   const normalizedDelinquency = syncRangeSliderPair({
@@ -3886,6 +3975,7 @@ function syncRangeSliderPair({
   endValue,
   defaultCount,
   formatLabel,
+  labelPrefix = "",
   onChange,
 }) {
   const startInput = document.getElementById(startId);
@@ -3915,9 +4005,14 @@ function syncRangeSliderPair({
   endInput.value = String(endIndex);
 
   if (label) {
-    label.textContent = isDisabled
+    const rangeLabel = isDisabled
       ? ""
       : `${formatLabel(keys[startIndex])} ~ ${formatLabel(keys[endIndex])}`;
+    label.innerHTML = isDisabled
+      ? ""
+      : labelPrefix
+        ? `<span class="range-label-prefix">${labelPrefix}</span><span class="range-label-period">${rangeLabel}</span>`
+        : `<span class="range-label-period">${rangeLabel}</span>`;
   }
 
   if (startText) {
@@ -5723,17 +5818,35 @@ function renderLoanSummary() {
   }
 }
 
-function renderLoanBarChart({ title, labelMode, points, valueKey, colorValue }) {
+function renderLoanBarChart({
+  title,
+  subtitle = "",
+  labelMode,
+  points,
+  valueKey,
+  colorValue,
+  labelFormatter = null,
+  valueFormatter = formatLoanValue,
+}) {
   if (!points.length) {
-    return "";
+    return `
+      <article class="startup-chart-card">
+        <div class="startup-chart-head">
+          ${subtitle ? `<div class="startup-chart-subtitle startup-chart-subtitle--strong">${subtitle}</div>` : ""}
+          <div class="startup-chart-title">${title}</div>
+        </div>
+        <div class="business-summary-empty">선택한 범위에 표시할 데이터가 없습니다.</div>
+      </article>
+    `;
   }
 
   const values = points.map((item) => item[valueKey] ?? 0);
   const maxValue = Math.max(...values, 1);
 
   return `
-    <article class="startup-chart-card">
+    <article class="startup-chart-card startup-chart-card--loan-bar">
       <div class="startup-chart-head">
+        ${subtitle ? `<div class="startup-chart-subtitle startup-chart-subtitle--strong">${subtitle}</div>` : ""}
         <div class="startup-chart-title">${title}</div>
       </div>
       <div class="startup-bars" style="--bar-count:${points.length};">
@@ -5741,16 +5854,17 @@ function renderLoanBarChart({ title, labelMode, points, valueKey, colorValue }) 
           .map((item) => {
             const value = item[valueKey] ?? 0;
             const barHeight = Math.max(8, Math.round((value / maxValue) * 120));
-            const label =
-              labelMode === "recent-month"
+            const label = labelFormatter
+              ? labelFormatter(item)
+              : labelMode === "recent-month"
                 ? `${item.year}.${item.month}월`
                 : labelMode === "mixed"
                   ? `${item.year}.${item.month === 12 ? "12월" : `${item.month}월`}`
                   : `${item.year}.12월`;
             return `
               <div class="startup-bar-item">
-                <div class="startup-bar-value">${formatLoanValue(value)}</div>
                 <div class="startup-bar-track">
+                  <div class="startup-bar-value">${valueFormatter(value)}</div>
                   <div class="startup-bar" style="height:${barHeight}px; --bar-color:${colorValue};"></div>
                 </div>
                 <div class="startup-bar-label">${label}</div>
@@ -5804,20 +5918,22 @@ function renderLoanLineChart({ title, seriesConfig, points }) {
   const range = maxValue - minValue || 1;
   const width = 320;
   const height = 150;
-  const paddingX = 22;
-  const paddingTop = 24;
-  const paddingBottom = 18;
-  const usableWidth = width - paddingX * 2;
+  const paddingLeft = 32;
+  const paddingRight = 32;
+  const paddingTop = 26;
+  const paddingBottom = 28;
+  const usableWidth = width - paddingLeft - paddingRight;
   const usableHeight = height - paddingTop - paddingBottom;
 
   const xForIndex = (index) =>
     points.length === 1
       ? width / 2
-      : paddingX + (usableWidth / (points.length - 1)) * index;
+      : paddingLeft + (usableWidth / (points.length - 1)) * index;
 
   const yForValue = (value) =>
     paddingTop + (1 - (value - minValue) / range) * usableHeight;
 
+  const pointKeys = points.map((point) => getLoanMonthKey(point));
   const seriesPoints = seriesConfig.map((series) => {
     const plotted = points
       .map((point, index) => {
@@ -5830,6 +5946,8 @@ function renderLoanLineChart({ title, seriesConfig, points }) {
           x: xForIndex(index),
           y: yForValue(value),
           value,
+          key: getLoanMonthKey(point),
+          label: formatBusinessPeriod(getLoanMonthKey(point)),
         };
       })
       .filter(Boolean);
@@ -5837,11 +5955,67 @@ function renderLoanLineChart({ title, seriesConfig, points }) {
     return {
       ...series,
       plotted,
+      minPoint: plotted.reduce((lowest, point) => (!lowest || point.value < lowest.value ? point : lowest), null),
+      maxPoint: plotted.reduce((highest, point) => (!highest || point.value > highest.value ? point : highest), null),
+      latestPoint: plotted[plotted.length - 1] || null,
       path: plotted
         .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
         .join(" "),
     };
   });
+
+  const firstKey = pointKeys[0] || "";
+  const lastKey = pointKeys[pointKeys.length - 1] || "";
+  const firstYearFull = Number(String(firstKey).slice(0, 4));
+  const yearSpan = getYearSpanFromKeys(firstKey, lastKey);
+  const yearStep = yearSpan > 5 ? 2 : 1;
+  const axisEntries = points
+    .map((point, index) => {
+      const key = getLoanMonthKey(point);
+      const isLatest = index === points.length - 1;
+      const pointYearFull = Number(String(key || "").slice(0, 4));
+      const pointYearShort = String(key || "").slice(2, 4);
+      const pointMonth = Number(String(key || "").slice(4, 6));
+      let label = "";
+
+      if (yearSpan > 5) {
+        if (pointMonth === 1 && Number.isFinite(pointYearFull) && ((pointYearFull - firstYearFull) % yearStep === 0)) {
+          label = pointYearShort;
+        } else if (isLatest && pointMonth !== 1) {
+          label = pointYearShort;
+        }
+      } else {
+        const latestYear = String(lastKey).slice(0, 4);
+        const pointYear = String(key).slice(0, 4);
+        label = !isLatest && pointYear === latestYear
+          ? ""
+          : formatBusinessAxisLabel(key, isLatest);
+      }
+
+      if (!label) {
+        return null;
+      }
+
+      return { x: xForIndex(index), label };
+    })
+    .filter(Boolean);
+  const axisMarkup = buildAxisMarkup(axisEntries, height - paddingBottom, height - 4);
+  const tooltipPoints = seriesPoints
+    .flatMap((series) =>
+      series.plotted.map((point) => `
+        <circle
+          class="startup-line-hit"
+          cx="${point.x}"
+          cy="${point.y}"
+          r="8"
+          tabindex="0"
+          data-tooltip-label="${point.label} ${series.label}"
+          data-tooltip-value="${formatNumber(point.value, 2)}%"
+          aria-label="${point.label} ${series.label} ${formatNumber(point.value, 2)}%"
+        ></circle>
+      `),
+    )
+    .join("");
 
   return `
     <article class="startup-chart-card">
@@ -5861,27 +6035,40 @@ function renderLoanLineChart({ title, seriesConfig, points }) {
         </div>
       </div>
       <div class="startup-line-chart" style="--bar-count:${points.length};">
+        <div class="startup-line-tooltip" hidden>
+          <div class="startup-line-tooltip-label"></div>
+          <div class="startup-line-tooltip-value"></div>
+        </div>
         <svg class="startup-line-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <line class="startup-line-grid" x1="${paddingX}" y1="${height - paddingBottom}" x2="${width - paddingX}" y2="${height - paddingBottom}"></line>
+          <line class="startup-line-grid" x1="${paddingLeft}" y1="${height - paddingBottom}" x2="${width - paddingRight}" y2="${height - paddingBottom}"></line>
           ${seriesPoints
             .map(
-              (series) => `
-                <path d="${series.path}" fill="none" stroke="${series.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
-                ${series.plotted
-                  .map(
-                    (point) => `
-                      <text class="startup-line-value" x="${point.x}" y="${series.label === "개인사업자" ? Math.min(height - 6, point.y + 18) : Math.max(12, point.y - 10)}" style="fill:${series.color};">${formatNumber(point.value, 2)}%</text>
-                      <circle cx="${point.x}" cy="${point.y}" r="4" fill="${series.color}" stroke="#ffffff" stroke-width="2"></circle>
-                    `,
-                  )
-                  .join("")}
-              `,
+              (series) => {
+                const latest = series.latestPoint;
+                const isNearRightEdge = latest ? latest.x > width - paddingRight - 28 : false;
+                const latestLabelY = latest
+                  ? isNearRightEdge
+                    ? Math.max(12, latest.y - 10)
+                    : Math.max(12, latest.y - 2)
+                  : 0;
+                const latestLabelDx = isNearRightEdge ? 0 : 8;
+                const latestLabelAnchor = isNearRightEdge ? "middle" : "start";
+
+                return `
+                  <path d="${series.path}" fill="none" stroke="${series.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+                  ${latest
+                    ? `
+                        <text class="startup-line-value" x="${latest.x}" y="${latestLabelY}" dx="${latestLabelDx}" style="fill:${series.color};font-weight:800;text-anchor:${latestLabelAnchor};">${formatNumber(latest.value, 2)}%</text>
+                        <circle class="startup-line-point" cx="${latest.x}" cy="${latest.y}" r="4.2" style="fill:${series.color};stroke-width:2;"></circle>
+                      `
+                    : ""}
+                `;
+              },
             )
             .join("")}
+          ${tooltipPoints}
+          ${axisMarkup}
         </svg>
-        <div class="startup-line-years">
-          ${points.map((point) => `<div class="startup-line-year">${point.year}.${point.month}월</div>`).join("")}
-        </div>
       </div>
     </article>
   `;
@@ -5896,21 +6083,36 @@ function renderLoanCharts() {
 
   const filteredLoanSeries = getFilteredLoanSeries();
   const filteredDelinquencySeries = getFilteredDelinquencyMonthlySeries();
+  const yearEndNetIncreasePoints = getFilteredLoanAnnualSeries(getLoanAnnualNetIncreasePointsByYearEnd());
+  const latestMonthNetIncreasePoints = getFilteredLoanAnnualSeries(getLoanAnnualNetIncreasePointsByLatestMonth());
+  const annualNetIncreaseLatestPoint = latestMonthNetIncreasePoints[latestMonthNetIncreasePoints.length - 1] || null;
+  const latestMonthLoanTitle = annualNetIncreaseLatestPoint
+    ? `최근월(${annualNetIncreaseLatestPoint.month}월) 기준 대출 순증 (조원)`
+    : "최근월 기준 대출 순증 (조원)";
 
   charts.innerHTML = [
     renderLoanMonthlyLineChart({
-      title: "은행권 중소기업대출잔액",
+      title: "은행권 중소기업대출잔액 (조원)",
       points: filteredLoanSeries,
       valueKey: "balance",
       color: "#2c7be5",
       digits: 1,
     }),
-    renderLoanMonthlyLineChart({
-      title: "은행권 중소기업대출 순증",
-      points: filteredLoanSeries,
+    renderLoanBarChart({
+      title: "연말 기준 대출 순증 (조원)",
+      points: yearEndNetIncreasePoints,
       valueKey: "netIncrease",
-      color: "#59a7ff",
-      digits: 1,
+      colorValue: "#2c7be5",
+      labelFormatter: (item) => `${item.year}`,
+      valueFormatter: formatLoanNumberOnly,
+    }),
+    renderLoanBarChart({
+      title: latestMonthLoanTitle,
+      points: latestMonthNetIncreasePoints,
+      valueKey: "netIncrease",
+      colorValue: "#59a7ff",
+      labelFormatter: (item) => `${item.year}`,
+      valueFormatter: formatLoanNumberOnly,
     }),
   ].filter(Boolean).join("");
 
@@ -5927,13 +6129,14 @@ function renderLoanCharts() {
       title: "중소법인 및 개인사업자 대출 연체율",
       points: filteredDelinquencySeries,
       seriesConfig: [
-        { key: "corporateRate", label: "중소법인", color: "#ff7b63" },
+        { key: "corporateRate", label: "중소법인", color: "#2f9e44" },
         { key: "solePropRate", label: "개인사업자", color: "#ffb347" },
       ],
     }),
   ].filter(Boolean).join("");
 
   bindLineChartTooltips(charts);
+  bindLineChartTooltips(delinquencyCharts);
 }
 
 function renderInvestmentSummary() {
