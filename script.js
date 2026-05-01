@@ -141,9 +141,23 @@ let investmentStageSeries = [];
 let investmentSectorSeries = [];
 let investmentSourceSeries = [];
 let investmentDates = [];
+let investmentSelectedPeriod = "annual";
+let investmentYearRangeStart = "";
+let investmentYearRangeEnd = "";
+let investmentBreakdownSelectedPeriod = "annual";
+let investmentBreakdownRangeStart = "";
+let investmentBreakdownRangeEnd = "";
+let investmentBreakdownSelectedIndustry = "";
+let investmentSourceSelectedPeriod = "annual";
+let investmentSourceRangeStart = "";
+let investmentSourceRangeEnd = "";
+let investmentSourceSelectedPolicyDetail = "모태펀드";
+let investmentSourceSelectedPrivateDetail = "VC";
 let exportSeries = [];
 let exportCountrySeries = [];
 let exportDates = [];
+let exportRangeStart = "";
+let exportRangeEnd = "";
 let businessCompositeSeries = [];
 let businessSeries = [];
 let businessDates = [];
@@ -443,6 +457,12 @@ const loadManagementJsonPayload = createMemoizedStaticJsonLoader(MANAGEMENT_JSON
 const loadExportJsonPayload = createMemoizedStaticJsonLoader(EXPORT_JSON_URL, EXPORT_JSON_CACHE_KEY);
 const loadLoanJsonPayload = createMemoizedStaticJsonLoader(LOAN_JSON_URL, LOAN_JSON_CACHE_KEY);
 const loadInvestmentJsonPayload = createMemoizedStaticJsonLoader(INVESTMENT_JSON_URL, INVESTMENT_JSON_CACHE_KEY);
+const INVESTMENT_PERIOD_OPTIONS = [
+  { value: "q1", label: "1분기", month: 3 },
+  { value: "q2", label: "2분기", month: 6 },
+  { value: "q3", label: "3분기", month: 9 },
+  { value: "annual", label: "연간", month: 12 },
+];
 
 function extractJsonPayload(text) {
   const trimmed = String(text || "").trim();
@@ -2114,6 +2134,14 @@ function formatEokValue(value) {
   return `${formatNumber(value, 0)}<span class="sme-value-unit">억원</span>`;
 }
 
+function formatInvestmentTrillionValue(value) {
+  if (value === undefined || value === null || Number.isNaN(value)) {
+    return "-";
+  }
+
+  return `${formatNumber(value / 10000, 1)}<span class="sme-value-unit">조원</span>`;
+}
+
 function formatCountValue(value) {
   if (value === undefined || value === null || Number.isNaN(value)) {
     return "-";
@@ -2201,9 +2229,14 @@ function formatInvestmentDelta(current, previous, type) {
   const deltaText =
     type === "count"
       ? `${delta > 0 ? "▲ " : delta < 0 ? "▼ " : ""}${formatNumber(Math.abs(delta), 0)}개`
-      : `${delta > 0 ? "▲ " : delta < 0 ? "▼ " : ""}${formatNumber(Math.abs(delta), 0)}억원`;
+      : `${delta > 0 ? "▲ " : delta < 0 ? "▼ " : ""}${formatNumber(Math.abs(delta) / 10000, 1)}조원`;
 
-  return `<span class="startup-delta${directionClass}">(전년대비 ${directionMark}${formatNumber(Math.abs(growth), 1)}%, ${deltaText})</span>`;
+  return `
+    <span class="startup-delta${directionClass}">
+      <span class="investment-delta-line">전년대비 ${directionMark}${formatNumber(Math.abs(growth), 1)}%</span>
+      <span class="investment-delta-line">${deltaText}</span>
+    </span>
+  `;
 }
 
 function formatInvestmentShare(value, total) {
@@ -2770,9 +2803,58 @@ function initLoanRangeControls() {
   delinquencyRangeEnd = normalizedDelinquency.end;
 }
 
+function getInvestmentPeriodConfig(period = investmentSelectedPeriod) {
+  return INVESTMENT_PERIOD_OPTIONS.find((item) => item.value === period) || INVESTMENT_PERIOD_OPTIONS[INVESTMENT_PERIOD_OPTIONS.length - 1];
+}
+
+function getInvestmentAvailableYears(period = investmentSelectedPeriod) {
+  const { month } = getInvestmentPeriodConfig(period);
+  return [...new Set(
+    investmentSeries
+      .filter((item) => item.month === month)
+      .map((item) => item.year),
+  )].sort((a, b) => a - b);
+}
+
+function getInvestmentAvailableYearsForSeries(series, period) {
+  const { month } = getInvestmentPeriodConfig(period);
+  return [...new Set(
+    series
+      .filter((item) => item.month === month)
+      .map((item) => item.year),
+  )].sort((a, b) => a - b);
+}
+
+function syncInvestmentSelection() {
+  const hasSelectedPeriod = INVESTMENT_PERIOD_OPTIONS.some((item) => item.value === investmentSelectedPeriod);
+  if (!hasSelectedPeriod) {
+    investmentSelectedPeriod = "annual";
+  }
+
+  const availableYears = getInvestmentAvailableYears(investmentSelectedPeriod);
+  if (!availableYears.length) {
+    investmentYearRangeStart = "";
+    investmentYearRangeEnd = "";
+    return availableYears;
+  }
+
+  const normalized = normalizeRangeSelection(
+    availableYears.map(String),
+    investmentYearRangeStart,
+    investmentYearRangeEnd,
+    Math.max(availableYears.length, 1),
+  );
+  investmentYearRangeStart = normalized.start;
+  investmentYearRangeEnd = normalized.end;
+
+  return availableYears;
+}
+
 function getInvestmentSelectedKey() {
-  const select = document.getElementById("investment-date-select");
-  return select?.value || investmentDates[investmentDates.length - 1] || "";
+  syncInvestmentSelection();
+  const { month } = getInvestmentPeriodConfig();
+  const targetYear = Number(investmentYearRangeEnd);
+  return investmentSeries.find((item) => item.year === targetYear && item.month === month)?.key || "";
 }
 
 function getInvestmentRecord(series, key = getInvestmentSelectedKey()) {
@@ -2799,16 +2881,135 @@ function formatInvestmentPointLabel(key = getInvestmentSelectedKey()) {
   return current?.date ? formatInvestmentPeriod(current.date) : "-";
 }
 
-function getRecentInvestmentSeries(series, windowSize = 3) {
-  const selectedKey = getInvestmentSelectedKey();
-  const current = getInvestmentRecord(series, selectedKey);
-  if (!current) {
-    return [];
+function getInvestmentTrendSeries(series) {
+  const { month } = getInvestmentPeriodConfig();
+  return series.filter((item) => {
+    if (item.month !== month) {
+      return false;
+    }
+    const yearKey = String(item.year);
+    if (investmentYearRangeStart && yearKey < investmentYearRangeStart) {
+      return false;
+    }
+    if (investmentYearRangeEnd && yearKey > investmentYearRangeEnd) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function getInvestmentRecordByPeriodAndYear(series, period, year) {
+  const { month } = getInvestmentPeriodConfig(period);
+  return series.find((item) => item.year === Number(year) && item.month === month) || null;
+}
+
+function getInvestmentBreakdownAvailableYears(period = investmentBreakdownSelectedPeriod) {
+  const { month } = getInvestmentPeriodConfig(period);
+  return [...new Set(
+    investmentStageSeries
+      .filter((item) => item.month === month)
+      .map((item) => item.year),
+  )].sort((a, b) => a - b);
+}
+
+function syncInvestmentBreakdownSelection() {
+  const hasSelectedPeriod = INVESTMENT_PERIOD_OPTIONS.some((item) => item.value === investmentBreakdownSelectedPeriod);
+  if (!hasSelectedPeriod) {
+    investmentBreakdownSelectedPeriod = "annual";
   }
 
-  return series
-    .filter((item) => item.month === current.month && item.year <= current.year)
-    .slice(-windowSize);
+  const availableYears = getInvestmentBreakdownAvailableYears(investmentBreakdownSelectedPeriod);
+  if (!availableYears.length) {
+    investmentBreakdownRangeStart = "";
+    investmentBreakdownRangeEnd = "";
+    return availableYears;
+  }
+
+  const normalized = normalizeRangeSelection(
+    availableYears.map(String),
+    investmentBreakdownRangeStart,
+    investmentBreakdownRangeEnd,
+    Math.max(availableYears.length, 1),
+  );
+  investmentBreakdownRangeStart = normalized.start;
+  investmentBreakdownRangeEnd = normalized.end;
+  return availableYears;
+}
+
+function syncInvestmentSourceSelection() {
+  const hasSelectedPeriod = INVESTMENT_PERIOD_OPTIONS.some((item) => item.value === investmentSourceSelectedPeriod);
+  if (!hasSelectedPeriod) {
+    investmentSourceSelectedPeriod = "annual";
+  }
+
+  const availableYears = getInvestmentAvailableYearsForSeries(investmentSourceSeries, investmentSourceSelectedPeriod);
+  if (!availableYears.length) {
+    investmentSourceRangeStart = "";
+    investmentSourceRangeEnd = "";
+    return availableYears;
+  }
+
+  const normalized = normalizeRangeSelection(
+    availableYears.map(String),
+    investmentSourceRangeStart,
+    investmentSourceRangeEnd,
+    Math.max(availableYears.length, 1),
+  );
+  investmentSourceRangeStart = normalized.start;
+  investmentSourceRangeEnd = normalized.end;
+  return availableYears;
+}
+
+function getInvestmentBreakdownTrendSeries(series) {
+  const { month } = getInvestmentPeriodConfig(investmentBreakdownSelectedPeriod);
+  return series.filter((item) => {
+    if (item.month !== month) {
+      return false;
+    }
+    const yearKey = String(item.year);
+    if (investmentBreakdownRangeStart && yearKey < investmentBreakdownRangeStart) {
+      return false;
+    }
+    if (investmentBreakdownRangeEnd && yearKey > investmentBreakdownRangeEnd) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function getInvestmentSourceTrendSeries(series) {
+  const { month } = getInvestmentPeriodConfig(investmentSourceSelectedPeriod);
+  return series.filter((item) => {
+    if (item.month !== month) {
+      return false;
+    }
+    const yearKey = String(item.year);
+    if (investmentSourceRangeStart && yearKey < investmentSourceRangeStart) {
+      return false;
+    }
+    if (investmentSourceRangeEnd && yearKey > investmentSourceRangeEnd) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function getInvestmentSectorNames() {
+  const latest = [...investmentSectorSeries].reverse().find((item) => item);
+  if (!latest) {
+    return [];
+  }
+  return [
+    "ICT서비스",
+    "바이오·의료",
+    "전기·기계·장비",
+    "ICT제조",
+    "유통·서비스",
+    "화학·소재",
+    "영상·공연·음반",
+    "게임",
+    "기타",
+  ].filter((name) => latest[name] !== undefined && latest[name] !== null && !Number.isNaN(latest[name]));
 }
 
 function parseExportRows(rows, valueKeys) {
@@ -3092,6 +3293,13 @@ function getRecentExportSeries(series, windowSize = 3) {
   return series
     .filter((item) => item.month === current.month && item.year <= current.year)
     .slice(-windowSize);
+}
+
+function getExportChartSeries(series = exportSeries) {
+  if (!series.length) {
+    return [];
+  }
+  return filterSeriesByRange(series, exportRangeStart, exportRangeEnd);
 }
 
 function renderExportBarChart({ title, points, key, type = "amount", colorValue }) {
@@ -6141,6 +6349,11 @@ function renderLoanCharts() {
 
 function renderInvestmentSummary() {
   const summary = document.getElementById("investment-summary");
+  const charts = document.getElementById("investment-charts");
+  const breakdown = document.getElementById("investment-breakdown");
+  const breakdownCharts = document.getElementById("investment-breakdown-charts");
+  const source = document.getElementById("investment-source");
+  const sourceCharts = document.getElementById("investment-source-charts");
 
   if (!investmentSeries.length) {
     summary.innerHTML = `
@@ -6149,204 +6362,82 @@ function renderInvestmentSummary() {
         <div class="startup-subvalue">${investmentLoadError || "구글 시트 투자 데이터 구성을 확인해 주세요."}</div>
       </article>
     `;
+    if (charts) {
+      charts.innerHTML = "";
+    }
+    if (breakdown) {
+      breakdown.innerHTML = "";
+    }
+    if (breakdownCharts) {
+      breakdownCharts.innerHTML = "";
+    }
+    if (source) {
+      source.innerHTML = "";
+    }
+    if (sourceCharts) {
+      sourceCharts.innerHTML = "";
+    }
     return;
   }
 
   const pointLabel = formatInvestmentPointLabel();
   const currentOverview = getInvestmentRecord(investmentSeries);
   const previousOverview = getPreviousYearInvestmentRecord(investmentSeries);
-  const currentStage = getInvestmentRecord(investmentStageSeries);
-  const currentSector = getInvestmentRecord(investmentSectorSeries);
-  const currentSource = getInvestmentRecord(investmentSourceSeries);
-  const benchmarkTotal = currentOverview?.["신규 벤처투자금액"] ?? 0;
-  const sourceTotal = (currentSource?.정책금융 ?? 0) + (currentSource?.민간부문 ?? 0);
-  const stageTotal =
-    (currentStage?.["초기 투자(3년 이내)"] ?? 0) +
-    (currentStage?.["중기 투자(3~7년 이내)"] ?? 0) +
-    (currentStage?.["후기 투자(7년 초과)"] ?? 0);
-
-  const topSectors = [
-    { name: "ICT서비스", value: currentSector?.["ICT서비스"] },
-    { name: "바이오·의료", value: currentSector?.["바이오·의료"] },
-    { name: "전기·기계·장비", value: currentSector?.["전기·기계·장비"] },
-    { name: "ICT제조", value: currentSector?.["ICT제조"] },
-    { name: "유통·서비스", value: currentSector?.["유통·서비스"] },
-    { name: "화학·소재", value: currentSector?.["화학·소재"] },
-    { name: "영상·공연·음반", value: currentSector?.["영상·공연·음반"] },
-    { name: "게임", value: currentSector?.게임 },
-    { name: "기타", value: currentSector?.기타 },
-  ]
-    .filter((item) => item.value !== undefined && item.value !== null && !Number.isNaN(item.value))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 3);
-  const overviewRecent = getRecentInvestmentSeries(investmentSeries, 3);
 
   summary.innerHTML = `
-    <article class="startup-summary-card">
-      <div class="startup-summary-grid">
-        <div class="startup-metric">
-          <div class="startup-kicker">${pointLabel} 신규 벤처투자금액</div>
-          <div class="startup-value">${formatEokValue(currentOverview?.["신규 벤처투자금액"])}${formatInvestmentDelta(currentOverview?.["신규 벤처투자금액"], previousOverview?.["신규 벤처투자금액"], "amount")}</div>
+    <article class="startup-summary-card investment-summary-card">
+      <div class="business-summary-caption">최신 수치</div>
+      <div class="startup-summary-grid startup-summary-grid--three-col investment-summary-grid">
+        <div class="startup-metric investment-summary-metric">
+          <div class="startup-kicker"><span class="investment-kicker-period">${pointLabel}</span><span class="investment-kicker-item">신규 벤처투자금액</span></div>
+          <div class="startup-value">${formatInvestmentTrillionValue(currentOverview?.["신규 벤처투자금액"])}</div>
+          <div class="startup-subvalue investment-summary-delta">${formatInvestmentDelta(currentOverview?.["신규 벤처투자금액"], previousOverview?.["신규 벤처투자금액"], "amount")}</div>
         </div>
-        <div class="startup-metric">
-          <div class="startup-kicker">${pointLabel} 벤처펀드 결정금액</div>
-          <div class="startup-value">${formatEokValue(currentOverview?.["벤처펀드 결정금액"])}${formatInvestmentDelta(currentOverview?.["벤처펀드 결정금액"], previousOverview?.["벤처펀드 결정금액"], "amount")}</div>
+        <div class="startup-metric investment-summary-metric">
+          <div class="startup-kicker"><span class="investment-kicker-period">${pointLabel}</span><span class="investment-kicker-item">벤처펀드 결성금액</span></div>
+          <div class="startup-value">${formatInvestmentTrillionValue(currentOverview?.["벤처펀드 결정금액"])}</div>
+          <div class="startup-subvalue investment-summary-delta">${formatInvestmentDelta(currentOverview?.["벤처펀드 결정금액"], previousOverview?.["벤처펀드 결정금액"], "amount")}</div>
         </div>
-        <div class="startup-metric">
-          <div class="startup-kicker">${pointLabel} 벤처펀드 결성 수</div>
-          <div class="startup-value">${formatCountValue(currentOverview?.["벤처펀드 결성 수"])}${formatInvestmentDelta(currentOverview?.["벤처펀드 결성 수"], previousOverview?.["벤처펀드 결성 수"], "count")}</div>
-        </div>
-      </div>
-    </article>
-    ${renderInvestmentBarChart({
-      title: "신규 벤처투자금액",
-      points: overviewRecent,
-      key: "신규 벤처투자금액",
-      colorValue: "#2c7be5",
-    })}
-    ${renderInvestmentBarChart({
-      title: "벤처펀드 결성금액",
-      points: overviewRecent,
-      key: "벤처펀드 결정금액",
-      colorValue: "#59a7ff",
-    })}
-    ${renderInvestmentBarChart({
-      title: "벤처펀드 결성 수",
-      points: overviewRecent,
-      key: "벤처펀드 결성 수",
-      type: "count",
-      colorValue: "#8bd3ff",
-    })}
-    <article class="startup-summary-card">
-      <div class="startup-summary-title">&lt; 업력별 투자 &gt;</div>
-      <div class="startup-summary-grid startup-summary-grid--three-col">
-        <div class="startup-metric investment-metric investment-metric--blue">
-          <div class="startup-kicker investment-kicker investment-kicker--blue">초기(3년 이내)</div>
-          <div class="startup-value investment-value investment-value--blue investment-value--compact">${formatEokValue(currentStage?.["초기 투자(3년 이내)"])}</div>
-          ${formatInvestmentShare(currentStage?.["초기 투자(3년 이내)"], stageTotal)}
-        </div>
-        <div class="startup-metric investment-metric investment-metric--orange">
-          <div class="startup-kicker investment-kicker investment-kicker--orange">중기(3~7년 이내)</div>
-          <div class="startup-value investment-value investment-value--orange investment-value--compact">${formatEokValue(currentStage?.["중기 투자(3~7년 이내)"])}</div>
-          ${formatInvestmentShare(currentStage?.["중기 투자(3~7년 이내)"], stageTotal)}
-        </div>
-        <div class="startup-metric investment-metric investment-metric--violet">
-          <div class="startup-kicker investment-kicker investment-kicker--violet">후기(7년 초과)</div>
-          <div class="startup-value investment-value investment-value--violet investment-value--compact">${formatEokValue(currentStage?.["후기 투자(7년 초과)"])}</div>
-          ${formatInvestmentShare(currentStage?.["후기 투자(7년 초과)"], stageTotal)}
+        <div class="startup-metric investment-summary-metric">
+          <div class="startup-kicker"><span class="investment-kicker-period">${pointLabel}</span><span class="investment-kicker-item">벤처펀드 결성 수</span></div>
+          <div class="startup-value">${formatCountValue(currentOverview?.["벤처펀드 결성 수"])}</div>
+          <div class="startup-subvalue investment-summary-delta">${formatInvestmentDelta(currentOverview?.["벤처펀드 결성 수"], previousOverview?.["벤처펀드 결성 수"], "count")}</div>
         </div>
       </div>
     </article>
-    ${renderInvestmentPieChart({
-      title: "업력별 투자 비중",
-      totalLabel: "신규 벤처투자금액 기준",
-      denominatorValue: benchmarkTotal,
-      items: [
-        { name: "초기 투자(3년 이내)", value: currentStage?.["초기 투자(3년 이내)"], color: "#2c7be5" },
-        { name: "중기 투자(3~7년 이내)", value: currentStage?.["중기 투자(3~7년 이내)"], color: "#59a7ff" },
-        { name: "후기 투자(7년 초과)", value: currentStage?.["후기 투자(7년 초과)"], color: "#8bd3ff" },
-      ],
-    })}
-    <article class="startup-summary-card">
-      <div class="startup-summary-title">&lt; 업종별 투자 &gt;</div>
-      <div class="startup-summary-grid startup-summary-grid--three-col">
-        ${topSectors
-          .map(
-            (item, index) => `
-                <div class="startup-metric investment-metric investment-metric--${index === 0 ? "blue" : index === 1 ? "orange" : "violet"}">
-                  <div class="startup-kicker investment-kicker investment-kicker--${index === 0 ? "blue" : index === 1 ? "orange" : "violet"}${item.name === "전기·기계·장비" ? " investment-kicker--compact" : ""}">${item.name}</div>
-                  <div class="startup-value investment-value investment-value--${index === 0 ? "blue" : index === 1 ? "orange" : "violet"} investment-value--compact">${formatEokValue(item.value)}</div>
-                  ${formatInvestmentShare(item.value, benchmarkTotal)}
-                </div>
-            `,
-          )
-          .join("")}
-      </div>
-    </article>
-    ${renderInvestmentPieChart({
-      title: "업종별 투자 비중",
-      totalLabel: "신규 벤처투자금액 기준",
-      denominatorValue: benchmarkTotal,
-      items: [
-        { name: "ICT서비스", value: currentSector?.["ICT서비스"], color: "#2c7be5" },
-        { name: "바이오·의료", value: currentSector?.["바이오·의료"], color: "#59a7ff" },
-        { name: "전기·기계·장비", value: currentSector?.["전기·기계·장비"], color: "#8bd3ff" },
-        { name: "ICT제조", value: currentSector?.["ICT제조"], color: "#ff7b63" },
-        { name: "유통·서비스", value: currentSector?.["유통·서비스"], color: "#ff9c73" },
-        { name: "화학·소재", value: currentSector?.["화학·소재"], color: "#ffc857" },
-        { name: "영상·공연·음반", value: currentSector?.["영상·공연·음반"], color: "#9c89ff" },
-        { name: "게임", value: currentSector?.게임, color: "#7a6ff0" },
-        { name: "기타", value: currentSector?.기타, color: "#94a3b8" },
-      ],
-    })}
-    <article class="startup-summary-card">
-      <div class="startup-summary-title">&lt; 출자자별 출자금액 &gt;</div>
-      <div class="startup-summary-grid startup-summary-grid--two-col">
-        <div class="startup-metric investment-metric investment-metric--blue">
-          <div class="startup-kicker investment-kicker investment-kicker--blue">정책금융</div>
-          <div class="startup-value investment-value investment-value--blue">${formatEokValue(currentSource?.정책금융)}</div>
-          ${formatInvestmentShare(currentSource?.정책금융, sourceTotal)}
-        </div>
-        <div class="startup-metric investment-metric investment-metric--orange">
-          <div class="startup-kicker investment-kicker investment-kicker--orange">민간부문</div>
-          <div class="startup-value investment-value investment-value--orange">${formatEokValue(currentSource?.민간부문)}</div>
-          ${formatInvestmentShare(currentSource?.민간부문, sourceTotal)}
-        </div>
-      </div>
-    </article>
-    ${renderInvestmentPieChart({
-      title: "정책금융 출자 비중",
-      totalLabel: "신규 벤처투자금액 기준",
-      denominatorValue: currentSource?.정책금융,
-      items: [
-        { name: "모태펀드", value: currentSource?.모태펀드, color: "#2c7be5" },
-        { name: "성장금융", value: currentSource?.성장금융, color: "#59a7ff" },
-        { name: "산업은행", value: currentSource?.산업은행, color: "#8bd3ff" },
-        { name: "기타 정책금융", value: currentSource?.["기타 정책금융"], color: "#b8e4ff" },
-      ],
-    })}
-    ${renderInvestmentPieChart({
-      title: "민간부문 출자 비중",
-      totalLabel: "신규 벤처투자금액 기준",
-      denominatorValue: benchmarkTotal,
-      items: [
-        { name: "개인", value: currentSource?.개인, color: "#ff7b63" },
-        { name: "일반법인", value: currentSource?.일반법인, color: "#ff9c73" },
-        { name: "금융기관(산은 제외)", value: currentSource?.["금융기관(산은 제외)"], color: "#ffc857" },
-        { name: "연기금 및 공제회", value: currentSource?.["연기금 및 공제회"], color: "#9c89ff" },
-        { name: "VC", value: currentSource?.VC, color: "#7a6ff0" },
-        { name: "기타단체 및 외국인", value: currentSource?.["기타단체 및 외국인"], color: "#94a3b8" },
-      ],
-    })}
   `;
 }
 
-function renderInvestmentBarChart({ title, points, key, type = "amount", colorValue }) {
+function renderInvestmentBarChart({ title, points, key, type = "amount", colorValue, lineColor }) {
   if (!points.length) {
     return "";
   }
 
   const values = points.map((item) => item[key] ?? 0);
   const maxValue = Math.max(...values, 1);
+  const chartHeight = 234;
 
   return `
-    <article class="startup-chart-card">
+    <article class="startup-chart-card investment-bar-card" style="--investment-line-color:${lineColor || colorValue};">
       <div class="startup-chart-head">
         <div class="startup-chart-title">${title}</div>
       </div>
-      <div class="startup-bars" style="--bar-count:${points.length};">
+      <div class="startup-bars investment-bars" style="--bar-count:${points.length}; --investment-chart-height:${chartHeight}px;">
+        <svg class="investment-bar-line-svg" aria-hidden="true">
+          <polyline class="investment-bar-line" points=""></polyline>
+        </svg>
         ${points
           .map((item) => {
             const value = item[key] ?? 0;
-            const barHeight = Math.max(8, Math.round((value / maxValue) * 120));
-            const valueText = type === "count" ? formatCountValue(value) : formatEokValue(value);
+            const barHeight = Math.max(12, Math.round((value / maxValue) * chartHeight));
+            const valueText = type === "count" ? formatCountValue(value) : formatInvestmentTrillionValue(value);
             return `
               <div class="startup-bar-item">
                 <div class="startup-bar-value">${valueText}</div>
                 <div class="startup-bar-track">
                   <div class="startup-bar" style="height:${barHeight}px; --bar-color:${colorValue};"></div>
                 </div>
-                <div class="startup-bar-label">${formatInvestmentPeriod(item.date)}</div>
+                <div class="startup-bar-label">${item.year}년</div>
               </div>
             `;
           })
@@ -6356,7 +6447,53 @@ function renderInvestmentBarChart({ title, points, key, type = "amount", colorVa
   `;
 }
 
-function renderInvestmentPieChart({ title, items, totalLabel, denominatorValue }) {
+function syncInvestmentBarLines() {
+  const cards = document.querySelectorAll(".investment-bar-card");
+  cards.forEach((card) => {
+    const bars = card.querySelector(".investment-bars");
+    const svg = card.querySelector(".investment-bar-line-svg");
+    const polyline = card.querySelector(".investment-bar-line");
+    const barElements = card.querySelectorAll(".investment-bars .startup-bar");
+
+    if (!bars || !svg || !polyline || !barElements.length) {
+      return;
+    }
+
+    const barsRect = bars.getBoundingClientRect();
+    const points = Array.from(barElements)
+      .map((bar) => {
+        const rect = bar.getBoundingClientRect();
+        return {
+          x: rect.left - barsRect.left + rect.width / 2,
+          y: rect.top - barsRect.top,
+        };
+      });
+
+    svg.setAttribute("viewBox", `0 0 ${barsRect.width} ${barsRect.height}`);
+    svg.setAttribute("preserveAspectRatio", "none");
+    polyline.setAttribute("points", points.map((point) => `${point.x},${point.y}`).join(" "));
+
+    svg.querySelectorAll(".investment-bar-line-point").forEach((node) => node.remove());
+    points.forEach((point) => {
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("class", "investment-bar-line-point");
+      circle.setAttribute("cx", String(point.x));
+      circle.setAttribute("cy", String(point.y));
+      circle.setAttribute("r", "5");
+      svg.appendChild(circle);
+    });
+  });
+}
+
+function renderInvestmentPieChart({
+  title,
+  items,
+  totalLabel,
+  denominatorValue,
+  valueFormatter = (value) => `${formatNumber(value, 0)}억원`,
+  legendClassName = "",
+  cardClassName = "",
+}) {
   const validItems = items.filter((item) => item.value !== undefined && item.value !== null && !Number.isNaN(item.value) && item.value > 0);
   if (!validItems.length) {
     return "";
@@ -6376,20 +6513,20 @@ function renderInvestmentPieChart({ title, items, totalLabel, denominatorValue }
   });
 
   return `
-    <article class="startup-chart-card">
+    <article class="startup-chart-card${cardClassName ? ` ${cardClassName}` : ""}">
       <div class="startup-chart-head">
         <div class="startup-chart-title">${title}</div>
       </div>
       <div class="investment-pie-layout">
         <div class="investment-pie" style="--pie-fill:${segments.join(", ")};"></div>
-        <div class="investment-pie-legend">
+        <div class="investment-pie-legend${legendClassName ? ` ${legendClassName}` : ""}">
           ${validItems
             .map(
               (item) => `
                 <div class="investment-pie-legend-item">
                   <span class="investment-pie-legend-swatch" style="--legend-color:${item.color};"></span>
                   <span class="investment-pie-legend-name">${item.name}</span>
-                  <span class="investment-pie-legend-value">${formatNumber(item.value, 0)}억원 (${formatNumber((item.value / baseTotal) * 100, 1)}%)</span>
+                  <span class="investment-pie-legend-value">${valueFormatter(item.value)} (${formatNumber((item.value / baseTotal) * 100, 1)}%)</span>
                 </div>
               `,
             )
@@ -6400,29 +6537,544 @@ function renderInvestmentPieChart({ title, items, totalLabel, denominatorValue }
   `;
 }
 
+function renderInvestmentShareLineChart({
+  title,
+  seriesConfig,
+  points,
+  headRightHtml = "",
+  cardClassName = "",
+  shareFormatter = (value) => `${formatNumber(value, 1)}%`,
+}) {
+  if (!points.length || !seriesConfig.length) {
+    return "";
+  }
+
+  const allValues = points.flatMap((point) =>
+    seriesConfig
+      .map((series) => point[series.key])
+      .filter((value) => value !== undefined && value !== null && !Number.isNaN(value)),
+  );
+  if (!allValues.length) {
+    return "";
+  }
+
+  const minValue = Math.min(...allValues);
+  const maxValue = Math.max(...allValues);
+  const range = maxValue - minValue || 1;
+  const width = 320;
+  const height = 150;
+  const paddingLeft = 32;
+  const paddingRight = 32;
+  const paddingTop = 26;
+  const paddingBottom = 28;
+  const usableWidth = width - paddingLeft - paddingRight;
+  const usableHeight = height - paddingTop - paddingBottom;
+  const xForIndex = (index) =>
+    points.length === 1
+      ? width / 2
+      : paddingLeft + (usableWidth / (points.length - 1)) * index;
+  const yForValue = (value) => paddingTop + (1 - (value - minValue) / range) * usableHeight;
+
+  const seriesPoints = seriesConfig.map((series) => {
+    const plotted = points
+      .map((point, index) => {
+        const value = point[series.key];
+        if (value === undefined || value === null || Number.isNaN(value)) {
+          return null;
+        }
+        return {
+          x: xForIndex(index),
+          y: yForValue(value),
+          value,
+          label: `${point.year}년`,
+          amount: point[`${series.key}Amount`],
+        };
+      })
+      .filter(Boolean);
+
+    return {
+      ...series,
+      plotted,
+      firstPoint: plotted[0] || null,
+      latestPoint: plotted[plotted.length - 1] || null,
+      path: plotted.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" "),
+    };
+  });
+
+  const axisEntries = points.map((point, index) => ({ x: xForIndex(index), label: `${String(point.year).slice(2)}년` }));
+  const axisMarkup = buildAxisMarkup(axisEntries, height - paddingBottom, height - 4);
+  const tooltipPoints = seriesPoints
+    .flatMap((series) =>
+      series.plotted.map((point) => `
+        <circle
+          class="startup-line-hit"
+          cx="${point.x}"
+          cy="${point.y}"
+          r="8"
+          tabindex="0"
+          data-tooltip-label="${point.label} ${series.label}"
+          data-tooltip-value="${point.amount !== undefined && point.amount !== null && !Number.isNaN(point.amount) ? `${formatInvestmentTrillionValue(point.amount).replace(/<[^>]+>/g, "")} (${shareFormatter(point.value)})` : shareFormatter(point.value)}"
+          aria-label="${point.label} ${series.label} ${point.amount !== undefined && point.amount !== null && !Number.isNaN(point.amount) ? `${formatInvestmentTrillionValue(point.amount).replace(/<[^>]+>/g, "")} ${shareFormatter(point.value)}` : shareFormatter(point.value)}"
+        ></circle>
+      `),
+    )
+    .join("");
+  const edgeLabels = seriesPoints
+    .flatMap((series) => {
+      const labels = [];
+      if (series.firstPoint) {
+        labels.push(`
+          <text
+            class="startup-line-edge-label startup-line-edge-label--start"
+            x="${series.firstPoint.x - 8}"
+            y="${series.firstPoint.y - 3}"
+            style="fill:${series.color};"
+          >
+            ${series.firstPoint.amount !== undefined && series.firstPoint.amount !== null && !Number.isNaN(series.firstPoint.amount)
+              ? `<tspan x="${series.firstPoint.x - 8}" dy="0">${formatInvestmentTrillionValue(series.firstPoint.amount).replace(/<[^>]+>/g, "")}</tspan>
+            <tspan x="${series.firstPoint.x - 8}" dy="11">(${shareFormatter(series.firstPoint.value)})</tspan>`
+              : `<tspan x="${series.firstPoint.x - 8}" dy="0">${shareFormatter(series.firstPoint.value)}</tspan>`}
+          </text>
+        `);
+      }
+      if (series.latestPoint) {
+        labels.push(`
+          <text
+            class="startup-line-edge-label startup-line-edge-label--end"
+            x="${series.latestPoint.x + 8}"
+            y="${series.latestPoint.y - 3}"
+            style="fill:${series.color};"
+          >
+            ${series.latestPoint.amount !== undefined && series.latestPoint.amount !== null && !Number.isNaN(series.latestPoint.amount)
+              ? `<tspan x="${series.latestPoint.x + 8}" dy="0">${formatInvestmentTrillionValue(series.latestPoint.amount).replace(/<[^>]+>/g, "")}</tspan>
+            <tspan x="${series.latestPoint.x + 8}" dy="11">(${shareFormatter(series.latestPoint.value)})</tspan>`
+              : `<tspan x="${series.latestPoint.x + 8}" dy="0">${shareFormatter(series.latestPoint.value)}</tspan>`}
+          </text>
+        `);
+      }
+      return labels;
+    })
+    .join("");
+
+  return `
+    <article class="startup-chart-card${cardClassName ? ` ${cardClassName}` : ""}">
+      <div class="startup-chart-head">
+        <div class="startup-chart-title">${title}</div>
+        ${headRightHtml || `
+          <div class="loan-line-legend">
+            ${seriesPoints
+              .map(
+                (series) => `
+                  <div class="loan-line-legend-item">
+                    <span class="loan-line-legend-swatch" style="--legend-color:${series.color};"></span>
+                    <span>${series.label}</span>
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+        `}
+      </div>
+      <div class="startup-line-chart" style="--bar-count:${points.length};">
+        <div class="startup-line-tooltip" hidden>
+          <div class="startup-line-tooltip-label"></div>
+          <div class="startup-line-tooltip-value"></div>
+        </div>
+        <svg class="startup-line-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <line class="startup-line-grid" x1="${paddingLeft}" y1="${height - paddingBottom}" x2="${width - paddingRight}" y2="${height - paddingBottom}"></line>
+          ${seriesPoints
+            .map((series) => `
+              <path class="startup-line-path" d="${series.path}" style="stroke:${series.color};"></path>
+              ${series.plotted
+                .map((point) => `
+                  <circle class="startup-line-point" cx="${point.x}" cy="${point.y}" r="4.2" style="fill:#ffffff;stroke:${series.color};stroke-width:2.2;"></circle>
+                `)
+                .join("")}
+            `)
+            .join("")}
+          ${edgeLabels}
+          ${axisMarkup}
+          ${tooltipPoints}
+        </svg>
+      </div>
+    </article>
+  `;
+}
+
 function renderInvestmentCharts() {
   const charts = document.getElementById("investment-charts");
-  charts.innerHTML = "";
+  const breakdown = document.getElementById("investment-breakdown");
+  const breakdownCharts = document.getElementById("investment-breakdown-charts");
+  const source = document.getElementById("investment-source");
+  const sourceCharts = document.getElementById("investment-source-charts");
+
+  if (!investmentSeries.length) {
+    charts.innerHTML = "";
+    breakdown.innerHTML = "";
+    breakdownCharts.innerHTML = "";
+    source.innerHTML = "";
+    sourceCharts.innerHTML = "";
+    return;
+  }
+
+  const breakdownEndYear = investmentBreakdownRangeEnd || syncInvestmentBreakdownSelection()[0] || "";
+  const currentStage = getInvestmentRecordByPeriodAndYear(investmentStageSeries, investmentBreakdownSelectedPeriod, breakdownEndYear);
+  const currentSector = getInvestmentRecordByPeriodAndYear(investmentSectorSeries, investmentBreakdownSelectedPeriod, breakdownEndYear);
+  const sourceEndYear = investmentSourceRangeEnd || syncInvestmentSourceSelection()[0] || "";
+  const currentSource = getInvestmentRecordByPeriodAndYear(investmentSourceSeries, investmentSourceSelectedPeriod, sourceEndYear);
+  const currentOverview = getInvestmentRecord(investmentSeries);
+  const benchmarkTotal = currentOverview?.["신규 벤처투자금액"] ?? 0;
+  const currentBreakdownOverview = getInvestmentRecordByPeriodAndYear(investmentSeries, investmentBreakdownSelectedPeriod, breakdownEndYear);
+  const breakdownBenchmarkTotal = currentBreakdownOverview?.["신규 벤처투자금액"] ?? 0;
+  const sourceTotal = (currentSource?.정책금융 ?? 0) + (currentSource?.민간부문 ?? 0);
+  const stageTotal =
+    (currentStage?.["초기 투자(3년 이내)"] ?? 0) +
+    (currentStage?.["중기 투자(3~7년 이내)"] ?? 0) +
+    (currentStage?.["후기 투자(7년 초과)"] ?? 0);
+  const topSectors = [
+    { name: "ICT서비스", value: currentSector?.["ICT서비스"] },
+    { name: "바이오·의료", value: currentSector?.["바이오·의료"] },
+    { name: "전기·기계·장비", value: currentSector?.["전기·기계·장비"] },
+    { name: "ICT제조", value: currentSector?.["ICT제조"] },
+    { name: "유통·서비스", value: currentSector?.["유통·서비스"] },
+    { name: "화학·소재", value: currentSector?.["화학·소재"] },
+    { name: "영상·공연·음반", value: currentSector?.["영상·공연·음반"] },
+    { name: "게임", value: currentSector?.게임 },
+    { name: "기타", value: currentSector?.기타 },
+  ]
+    .filter((item) => item.value !== undefined && item.value !== null && !Number.isNaN(item.value))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 3);
+  const topSectorConfigs = topSectors.map((item, index) => ({
+    key: `sector${index + 1}`,
+    label: item.name,
+    color: index === 0 ? "#2c7be5" : index === 1 ? "#ef7d32" : "#7a6ff0",
+  }));
+  const sectorPalette = ["#2c7be5", "#59a7ff", "#ef7d32", "#7a6ff0", "#8a7dff", "#00a6a6", "#ff6b6b", "#f4b942", "#94a3b8"];
+  const sectorNames = getInvestmentSectorNames();
+  if (!sectorNames.includes(investmentBreakdownSelectedIndustry)) {
+    investmentBreakdownSelectedIndustry = topSectors[0]?.name || sectorNames[0] || "";
+  }
+  const overviewTrend = getInvestmentTrendSeries(investmentSeries);
+
+  charts.innerHTML = [
+    renderInvestmentBarChart({
+      title: "신규 벤처투자금액 추이",
+      points: overviewTrend,
+      key: "신규 벤처투자금액",
+      colorValue: "#2c7be5",
+      lineColor: "#1f5fb8",
+    }),
+    renderInvestmentBarChart({
+      title: "벤처펀드 결성금액 추이",
+      points: overviewTrend,
+      key: "벤처펀드 결정금액",
+      colorValue: "#ef7d32",
+      lineColor: "#c45f1b",
+    }),
+    renderInvestmentBarChart({
+      title: "벤처펀드 결성 수 추이",
+      points: overviewTrend,
+      key: "벤처펀드 결성 수",
+      type: "count",
+      colorValue: "#7a6ff0",
+      lineColor: "#5d50cb",
+    }),
+  ].filter(Boolean).join("");
+
+  breakdown.innerHTML = `
+    <article class="startup-summary-card">
+      <div class="business-summary-caption">최신 수치</div>
+      <div class="startup-summary-title">&lt; 업력별 투자 &gt;</div>
+      <div class="startup-summary-grid startup-summary-grid--three-col">
+        <div class="startup-metric investment-metric investment-metric--blue">
+          <div class="startup-kicker investment-kicker investment-kicker--blue">초기(3년 이내)</div>
+          <div class="startup-value investment-value investment-value--blue investment-value--compact">${formatInvestmentTrillionValue(currentStage?.["초기 투자(3년 이내)"])}</div>
+          ${formatInvestmentShare(currentStage?.["초기 투자(3년 이내)"], stageTotal)}
+        </div>
+        <div class="startup-metric investment-metric investment-metric--orange">
+          <div class="startup-kicker investment-kicker investment-kicker--orange">중기(3~7년 이내)</div>
+          <div class="startup-value investment-value investment-value--orange investment-value--compact">${formatInvestmentTrillionValue(currentStage?.["중기 투자(3~7년 이내)"])}</div>
+          ${formatInvestmentShare(currentStage?.["중기 투자(3~7년 이내)"], stageTotal)}
+        </div>
+        <div class="startup-metric investment-metric investment-metric--violet">
+          <div class="startup-kicker investment-kicker investment-kicker--violet">후기(7년 초과)</div>
+          <div class="startup-value investment-value investment-value--violet investment-value--compact">${formatInvestmentTrillionValue(currentStage?.["후기 투자(7년 초과)"])}</div>
+          ${formatInvestmentShare(currentStage?.["후기 투자(7년 초과)"], stageTotal)}
+        </div>
+      </div>
+    </article>
+    <article class="startup-summary-card">
+      <div class="business-summary-caption">최신 수치</div>
+      <div class="investment-breakdown-card-head">
+        <div class="startup-summary-title">&lt; 업종별 투자 &gt;</div>
+        <div class="investment-breakdown-top-sectors">${topSectors.map((item, index) => `${index + 1}위 ${item.name}`).join(" · ")}</div>
+      </div>
+      <div class="startup-summary-grid startup-summary-grid--three-col">
+        ${topSectors
+          .map(
+            (item, index) => `
+              <div class="startup-metric investment-metric investment-metric--${index === 0 ? "blue" : index === 1 ? "orange" : "violet"}">
+                <div class="startup-kicker investment-kicker investment-kicker--${index === 0 ? "blue" : index === 1 ? "orange" : "violet"}${item.name === "전기·기계·장비" ? " investment-kicker--compact" : ""}">${item.name}</div>
+                <div class="startup-value investment-value investment-value--${index === 0 ? "blue" : index === 1 ? "orange" : "violet"} investment-value--compact">${formatInvestmentTrillionValue(item.value)}</div>
+                ${formatInvestmentShare(item.value, breakdownBenchmarkTotal)}
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    </article>
+  `;
+
+  breakdownCharts.innerHTML = [
+    renderInvestmentShareLineChart({
+      title: "업력별 투자 비중 추이",
+      points: getInvestmentBreakdownTrendSeries(investmentStageSeries).map((item) => {
+        const total =
+          (item["초기 투자(3년 이내)"] ?? 0) +
+          (item["중기 투자(3~7년 이내)"] ?? 0) +
+          (item["후기 투자(7년 초과)"] ?? 0);
+        return {
+          year: item.year,
+          early: total > 0 ? ((item["초기 투자(3년 이내)"] ?? 0) / total) * 100 : null,
+          earlyAmount: item["초기 투자(3년 이내)"] ?? null,
+          mid: total > 0 ? ((item["중기 투자(3~7년 이내)"] ?? 0) / total) * 100 : null,
+          midAmount: item["중기 투자(3~7년 이내)"] ?? null,
+          late: total > 0 ? ((item["후기 투자(7년 초과)"] ?? 0) / total) * 100 : null,
+          lateAmount: item["후기 투자(7년 초과)"] ?? null,
+        };
+      }),
+      seriesConfig: [
+        { key: "early", label: "초기", color: "#2c7be5" },
+        { key: "mid", label: "중기", color: "#ef7d32" },
+        { key: "late", label: "후기", color: "#7a6ff0" },
+      ],
+      cardClassName: "investment-breakdown-chart-card investment-breakdown-chart-card--line",
+    }),
+    renderInvestmentShareLineChart({
+      title: "업종별 투자 비중 추이",
+      points: getInvestmentBreakdownTrendSeries(investmentSectorSeries).map((item) => ({
+        year: item.year,
+        selectedIndustry: (() => {
+          const total = getInvestmentRecordByPeriodAndYear(investmentSeries, investmentBreakdownSelectedPeriod, item.year)?.["신규 벤처투자금액"] || 0;
+          return total > 0 && investmentBreakdownSelectedIndustry ? ((item[investmentBreakdownSelectedIndustry] ?? 0) / total) * 100 : null;
+        })(),
+        selectedIndustryAmount: investmentBreakdownSelectedIndustry ? (item[investmentBreakdownSelectedIndustry] ?? null) : null,
+      })),
+      seriesConfig: investmentBreakdownSelectedIndustry
+        ? [{ key: "selectedIndustry", label: investmentBreakdownSelectedIndustry, color: "#2c7be5" }]
+        : [],
+      headRightHtml: `
+        <div class="investment-industry-select-wrap">
+          <span class="inline-select-label">업종 선택</span>
+          <select id="investment-industry-line-select" class="year-select year-select--wide">
+            ${sectorNames.map((name) => `<option value="${name}" ${name === investmentBreakdownSelectedIndustry ? "selected" : ""}>${name}</option>`).join("")}
+          </select>
+        </div>
+      `,
+      cardClassName: "investment-breakdown-chart-card investment-breakdown-chart-card--line",
+    }),
+    renderInvestmentPieChart({
+      title: `${breakdownEndYear}년 업력별 투자 비중`,
+      denominatorValue: stageTotal,
+      valueFormatter: (value) => formatInvestmentTrillionValue(value),
+      items: [
+        { name: "초기(3년 이내)", value: currentStage?.["초기 투자(3년 이내)"], color: "#2c7be5" },
+        { name: "중기(3~7년 이내)", value: currentStage?.["중기 투자(3~7년 이내)"], color: "#ef7d32" },
+        { name: "후기(7년 초과)", value: currentStage?.["후기 투자(7년 초과)"], color: "#7a6ff0" },
+      ],
+    }),
+    renderInvestmentPieChart({
+      title: `${breakdownEndYear}년 업종별 투자 비중`,
+      denominatorValue: breakdownBenchmarkTotal,
+      valueFormatter: (value) => formatInvestmentTrillionValue(value),
+      legendClassName: "investment-pie-legend--three-col",
+      items: sectorNames.map((name, index) => ({
+        name,
+        value: currentSector?.[name],
+        color: sectorPalette[index % sectorPalette.length],
+      })),
+    }),
+  ].filter(Boolean).join("");
+
+  source.innerHTML = `
+    <article class="startup-summary-card">
+      <div class="business-summary-caption">최신 수치</div>
+      <div class="startup-summary-title">&lt; 출자자별 출자금액 &gt;</div>
+      <div class="startup-summary-grid startup-summary-grid--two-col">
+        <div class="startup-metric investment-metric investment-metric--blue">
+          <div class="startup-kicker investment-kicker investment-kicker--blue">정책금융</div>
+          <div class="startup-value investment-value investment-value--blue">${formatInvestmentTrillionValue(currentSource?.정책금융)}</div>
+          ${formatInvestmentShare(currentSource?.정책금융, sourceTotal)}
+        </div>
+        <div class="startup-metric investment-metric investment-metric--orange">
+          <div class="startup-kicker investment-kicker investment-kicker--orange">민간부문</div>
+          <div class="startup-value investment-value investment-value--orange">${formatInvestmentTrillionValue(currentSource?.민간부문)}</div>
+          ${formatInvestmentShare(currentSource?.민간부문, sourceTotal)}
+        </div>
+      </div>
+    </article>
+  `;
+
+  const sourcePolicySeries = [
+    { key: "모태펀드", label: "모태펀드", color: "#2c7be5" },
+    { key: "성장금융", label: "성장금융", color: "#59a7ff" },
+    { key: "산업은행", label: "산업은행", color: "#8bd3ff" },
+    { key: "기타 정책금융", label: "기타 정책금융", color: "#b8e4ff" },
+  ];
+  const sourcePrivateSeries = [
+    { key: "개인", label: "개인", color: "#ff7b63" },
+    { key: "일반법인", label: "일반법인", color: "#ff9c73" },
+    { key: "금융기관(산은 제외)", label: "금융기관(산은 제외)", color: "#ffc857" },
+    { key: "연기금 및 공제회", label: "연기금 및 공제회", color: "#9c89ff" },
+    { key: "VC", label: "VC", color: "#7a6ff0" },
+    { key: "기타단체 및 외국인", label: "기타단체 및 외국인", color: "#94a3b8" },
+  ];
+  if (!sourcePolicySeries.some((item) => item.key === investmentSourceSelectedPolicyDetail)) {
+    investmentSourceSelectedPolicyDetail = sourcePolicySeries[0]?.key || "";
+  }
+  if (!sourcePrivateSeries.some((item) => item.key === investmentSourceSelectedPrivateDetail)) {
+    investmentSourceSelectedPrivateDetail = sourcePrivateSeries[0]?.key || "";
+  }
+  const selectedPolicySeries = sourcePolicySeries.find((item) => item.key === investmentSourceSelectedPolicyDetail) || sourcePolicySeries[0];
+  const selectedPrivateSeries = sourcePrivateSeries.find((item) => item.key === investmentSourceSelectedPrivateDetail) || sourcePrivateSeries[0];
+  const sourceTrend = getInvestmentSourceTrendSeries(investmentSourceSeries);
+
+  sourceCharts.innerHTML = [
+    renderInvestmentShareLineChart({
+      title: "정책금융 및 민간부문 출자 비중 추이",
+      points: sourceTrend.map((item) => {
+        const total = (item?.정책금융 ?? 0) + (item?.민간부문 ?? 0);
+        return {
+          year: item.year,
+          policy: total > 0 ? ((item?.정책금융 ?? 0) / total) * 100 : null,
+          policyAmount: item?.정책금융 ?? null,
+          private: total > 0 ? ((item?.민간부문 ?? 0) / total) * 100 : null,
+          privateAmount: item?.민간부문 ?? null,
+        };
+      }),
+      seriesConfig: [
+        { key: "policy", label: "정책금융", color: "#2c7be5" },
+        { key: "private", label: "민간부문", color: "#ef7d32" },
+      ],
+      cardClassName: "investment-source-chart-card investment-source-chart-card--line",
+    }),
+    renderInvestmentShareLineChart({
+      title: "정책금융 세부 출자 비중 추이",
+      points: sourceTrend.map((item) => {
+        const denominator = item?.정책금융 || 0;
+        return {
+          year: item.year,
+          selectedPolicy: denominator > 0 ? ((item?.[investmentSourceSelectedPolicyDetail] ?? 0) / denominator) * 100 : null,
+          selectedPolicyAmount: item?.[investmentSourceSelectedPolicyDetail] ?? null,
+        };
+      }),
+      seriesConfig: selectedPolicySeries
+        ? [{ key: "selectedPolicy", label: selectedPolicySeries.label, color: selectedPolicySeries.color }]
+        : [],
+      headRightHtml: `
+        <div class="investment-industry-select-wrap">
+          <span class="inline-select-label">세부 구분</span>
+          <select id="investment-source-policy-select" class="year-select year-select--wide">
+            ${sourcePolicySeries.map((item) => `<option value="${item.key}" ${item.key === investmentSourceSelectedPolicyDetail ? "selected" : ""}>${item.label}</option>`).join("")}
+          </select>
+        </div>
+      `,
+      cardClassName: "investment-source-chart-card investment-source-chart-card--line",
+    }),
+    renderInvestmentShareLineChart({
+      title: "민간부문 세부 출자 비중 추이",
+      points: sourceTrend.map((item) => {
+        const denominator = item?.민간부문 || 0;
+        return {
+          year: item.year,
+          selectedPrivate: denominator > 0 ? ((item?.[investmentSourceSelectedPrivateDetail] ?? 0) / denominator) * 100 : null,
+          selectedPrivateAmount: item?.[investmentSourceSelectedPrivateDetail] ?? null,
+        };
+      }),
+      seriesConfig: selectedPrivateSeries
+        ? [{ key: "selectedPrivate", label: selectedPrivateSeries.label, color: selectedPrivateSeries.color }]
+        : [],
+      headRightHtml: `
+        <div class="investment-industry-select-wrap">
+          <span class="inline-select-label">세부 구분</span>
+          <select id="investment-source-private-select" class="year-select year-select--wide">
+            ${sourcePrivateSeries.map((item) => `<option value="${item.key}" ${item.key === investmentSourceSelectedPrivateDetail ? "selected" : ""}>${item.label}</option>`).join("")}
+          </select>
+        </div>
+      `,
+      cardClassName: "investment-source-chart-card investment-source-chart-card--line",
+    }),
+    renderInvestmentPieChart({
+      title: `${sourceEndYear}년 정책금융 세부 출자 비중`,
+      denominatorValue: currentSource?.정책금융,
+      valueFormatter: (value) => formatInvestmentTrillionValue(value),
+      legendClassName: "investment-pie-legend--two-col",
+      items: sourcePolicySeries.map((series) => ({
+        name: series.label,
+        value: currentSource?.[series.key],
+        color: series.color,
+      })),
+      cardClassName: "investment-source-chart-card investment-source-chart-card--pie",
+    }),
+    renderInvestmentPieChart({
+      title: `${sourceEndYear}년 민간부문 세부 출자 비중`,
+      denominatorValue: currentSource?.민간부문,
+      valueFormatter: (value) => formatInvestmentTrillionValue(value),
+      legendClassName: "investment-pie-legend--two-col",
+      items: sourcePrivateSeries.map((series) => ({
+        name: series.label,
+        value: currentSource?.[series.key],
+        color: series.color,
+      })),
+      cardClassName: "investment-source-chart-card investment-source-chart-card--pie",
+    }),
+  ].filter(Boolean).join("");
+
+  window.requestAnimationFrame(() => {
+    syncInvestmentBarLines();
+    bindLineChartTooltips(breakdownCharts);
+    bindLineChartTooltips(sourceCharts);
+    const industrySelect = document.getElementById("investment-industry-line-select");
+    if (industrySelect) {
+      industrySelect.onchange = () => {
+        investmentBreakdownSelectedIndustry = industrySelect.value;
+        renderInvestmentCharts();
+      };
+    }
+    const sourcePolicySelect = document.getElementById("investment-source-policy-select");
+    if (sourcePolicySelect) {
+      sourcePolicySelect.onchange = () => {
+        investmentSourceSelectedPolicyDetail = sourcePolicySelect.value;
+        renderInvestmentCharts();
+      };
+    }
+    const sourcePrivateSelect = document.getElementById("investment-source-private-select");
+    if (sourcePrivateSelect) {
+      sourcePrivateSelect.onchange = () => {
+        investmentSourceSelectedPrivateDetail = sourcePrivateSelect.value;
+        renderInvestmentCharts();
+      };
+    }
+  });
 }
 
 function renderExportSummary() {
   const summary = document.getElementById("export-summary");
 
+  if (!summary) {
+    return;
+  }
+
   if (!exportSeries.length) {
     summary.innerHTML = `
-      <article class="startup-summary-card">
-        <div class="startup-value">수출 데이터를 불러오지 못했습니다.</div>
-        <div class="startup-subvalue">${exportLoadError || "구글 시트 수출 데이터 구성을 확인해 주세요."}</div>
-      </article>
+      <div class="business-summary-empty">${exportLoadError || "수출 데이터를 불러오는 중입니다."}</div>
     `;
     return;
   }
 
   const current = getExportRecord();
-  const currentCountry = getExportCountryRecord();
   const previous = getPreviousYearExportRecord(exportSeries);
-  const previousCountry = getPreviousYearExportRecord(exportCountrySeries);
-  const recentExport = getRecentExportSeries(exportSeries, 3);
   const companyShare =
     current?.["전체 기업 수"] && current?.["중소기업 기업 수"] !== undefined
       ? (current["중소기업 기업 수"] / current["전체 기업 수"]) * 100
@@ -6431,6 +7083,45 @@ function renderExportSummary() {
     current?.["전체 수출금액"] && current?.["중소기업 수출금액"] !== undefined
       ? (current["중소기업 수출금액"] / current["전체 수출금액"]) * 100
       : null;
+
+  summary.innerHTML = `
+    <div class="business-summary-caption">최신 수치</div>
+    <div class="business-summary-inline-grid">
+      <div class="business-summary-inline-item">
+        <div class="startup-kicker">${formatExportPeriod(current?.date)} 수출 중소기업 수</div>
+        <div class="business-inline-value">
+          <div class="business-inline-number">${formatExportCompanyCount(current?.["중소기업 기업 수"])}</div>
+          <div class="startup-subvalue">(비중: <span class="startup-share-value">${companyShare === null ? "-" : `${formatNumber(companyShare, 1)}%`}</span>)</div>
+          ${previous ? `<div class="business-inline-delta">${formatYoYGrowth(current?.["중소기업 기업 수"], previous?.["중소기업 기업 수"])}</div>` : ""}
+        </div>
+      </div>
+      <div class="business-summary-inline-item">
+        <div class="startup-kicker">${formatExportPeriod(current?.date)} 중소기업 수출금액</div>
+        <div class="business-inline-value">
+          <div class="business-inline-number">${formatExportAmount(current?.["중소기업 수출금액"])}</div>
+          <div class="startup-subvalue">(비중: <span class="startup-share-value">${exportShare === null ? "-" : `${formatNumber(exportShare, 1)}%`}</span>)</div>
+          ${previous ? `<div class="business-inline-delta">${formatYoYGrowth(current?.["중소기업 수출금액"], previous?.["중소기업 수출금액"])}</div>` : ""}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderExportCharts() {
+  const charts = document.getElementById("export-charts");
+  if (!charts) {
+    return;
+  }
+
+  if (!exportSeries.length) {
+    charts.innerHTML = "";
+    return;
+  }
+
+  const current = getExportRecord();
+  const currentCountry = getExportCountryRecord();
+  const previousCountry = getPreviousYearExportRecord(exportCountrySeries);
+  const filteredExport = getExportChartSeries(exportSeries);
   const countryPalette = ["#d04a42", "#6f5bd3", "#2f8f6b", "#d4a72c", "#7d8796"];
   const excludedCountryNames = new Set(["EU27", "EU28", "동남아", "중동", "중남미", "그 외 지역"]);
   const countryTotal =
@@ -6453,99 +7144,69 @@ function renderExportSummary() {
       ...item,
       color: countryPalette[index % countryPalette.length],
     }));
-  const otherCountryValue = Math.max(
-    0,
-    countryTotal - topCountries.reduce((sum, item) => sum + item.value, 0),
-  );
+  const otherCountryValue = Math.max(0, countryTotal - topCountries.reduce((sum, item) => sum + item.value, 0));
   const pieItems = [
     ...topCountries,
-    ...(otherCountryValue > 0
-      ? [{
-        name: "기타",
-        value: otherCountryValue,
-        color: "#94a3b8",
-      }]
-      : []),
+    ...(otherCountryValue > 0 ? [{ name: "기타", value: otherCountryValue, color: "#94a3b8" }] : []),
   ];
 
-  summary.innerHTML = `
-    <article class="startup-summary-card">
-      <div class="startup-summary-grid startup-summary-grid--two-col">
-        <div class="startup-metric">
-          <div class="startup-kicker">수출 중소기업 수</div>
-          <div class="startup-value">${formatExportCompanyCount(current?.["중소기업 기업 수"])}</div>
-          <div class="startup-subvalue">(비중: <span class="startup-share-value">${companyShare === null ? "-" : `${formatNumber(companyShare, 1)}%`}</span>)</div>
-          <div class="startup-subvalue">${formatYoYGrowth(current?.["중소기업 기업 수"], previous?.["중소기업 기업 수"])}</div>
-        </div>
-        <div class="startup-metric">
-          <div class="startup-kicker">중소기업 수출금액</div>
-          <div class="startup-value">${formatExportAmount(current?.["중소기업 수출금액"])}</div>
-          <div class="startup-subvalue">(비중: <span class="startup-share-value">${exportShare === null ? "-" : `${formatNumber(exportShare, 1)}%`}</span>)</div>
-          <div class="startup-subvalue">${formatYoYGrowth(current?.["중소기업 수출금액"], previous?.["중소기업 수출금액"])}</div>
-        </div>
-      </div>
-    </article>
-    ${renderExportBarChart({
+  charts.innerHTML = [
+    renderExportBarChart({
       title: "수출 중소기업 수",
-      points: recentExport,
+      points: filteredExport,
       key: "중소기업 기업 수",
       type: "count",
       colorValue: "#2c7be5",
-    })}
-    ${renderExportShareLineChart({
+    }),
+    renderExportShareLineChart({
       title: "수출 중소기업 비중",
-      points: recentExport,
+      points: filteredExport,
       valueKey: "중소기업 기업 수",
       totalKey: "전체 기업 수",
       colorValue: "#2c7be5",
-    })}
-    ${renderExportBarChart({
+    }),
+    renderExportBarChart({
       title: "중소기업 수출금액",
-      points: recentExport,
+      points: filteredExport,
       key: "중소기업 수출금액",
       type: "amount",
       colorValue: "#59a7ff",
-    })}
-    ${renderExportShareLineChart({
+    }),
+    renderExportShareLineChart({
       title: "중소기업 수출금액 비중",
-      points: recentExport,
+      points: filteredExport,
       valueKey: "중소기업 수출금액",
       totalKey: "전체 수출금액",
       colorValue: "#59a7ff",
-    })}
-    <div class="section-head section-head-secondary">
-      <div>
-        <h2>중소기업 주요 수출국</h2>
-      </div>
-    </div>
-    <article class="startup-summary-card">
-      <div class="startup-summary-grid">
-        ${topCountries
-          .map(
-            (item) => `
-              <div class="startup-metric investment-metric" style="--investment-accent:${item.color};">
-                <div class="startup-kicker investment-kicker">${item.name}</div>
-                <div class="startup-value investment-value">${formatExportAmount(item.value)}${item.share === null ? "" : ` <span class="sme-value-unit">(비중: ${formatNumber(item.share, 1)}%)</span>`}</div>
-                <div class="startup-subvalue">${formatYoYGrowth(item.value, item.previousValue)}</div>
-              </div>
-            `,
-          )
-          .join("")}
-      </div>
-    </article>
-    ${renderExportCountryPieChart({
+    }),
+    `
+      <article class="startup-chart-card">
+        <div class="startup-chart-head">
+          <div class="startup-chart-title">중소기업 주요 수출국</div>
+        </div>
+        <div class="startup-summary-grid">
+          ${topCountries
+            .map(
+              (item) => `
+                <div class="startup-metric investment-metric" style="--investment-accent:${item.color};">
+                  <div class="startup-kicker investment-kicker">${item.name}</div>
+                  <div class="startup-value investment-value">${formatExportAmount(item.value)}${item.share === null ? "" : ` <span class="sme-value-unit">(비중: ${formatNumber(item.share, 1)}%)</span>`}</div>
+                  <div class="startup-subvalue">${formatYoYGrowth(item.value, item.previousValue)}</div>
+                </div>
+              `,
+            )
+            .join("")}
+        </div>
+      </article>
+    `,
+    renderExportCountryPieChart({
       title: "국가별 중소기업 수출비중",
       items: pieItems,
       totalValue: countryTotal,
-    })}
-  `;
-}
-
-function renderExportCharts() {
-  const charts = document.getElementById("export-charts");
-  if (charts) {
-    charts.innerHTML = "";
-  }
+    }),
+  ]
+    .filter(Boolean)
+    .join("");
 }
 
 function initStartupYearSelect() {
@@ -6589,27 +7250,148 @@ function initLoanYearSelect() {
 }
 
 function initInvestmentDateSelect() {
-  const select = document.getElementById("investment-date-select");
-  if (!investmentDates.length) {
-    select.innerHTML = "";
+  const periodSelect = document.getElementById("investment-period-select");
+  if (!periodSelect) {
     return;
   }
 
-  select.innerHTML = investmentDates
-    .map((key) => {
-      const record = getInvestmentRecord(investmentSeries, key);
-      return `<option value="${key}">${record?.date ? formatInvestmentPeriod(record.date) : key}</option>`;
-    })
+  periodSelect.innerHTML = INVESTMENT_PERIOD_OPTIONS
+    .map((item) => `<option value="${item.value}">${item.label}</option>`)
     .join("");
-  select.value = investmentDates[investmentDates.length - 1];
-  select.onchange = () => {
+  periodSelect.value = investmentSelectedPeriod;
+  periodSelect.onchange = () => {
+    investmentSelectedPeriod = periodSelect.value;
+    syncInvestmentSelection();
+    initInvestmentDateSelect();
     renderInvestmentSummary();
     renderInvestmentCharts();
   };
+
+  const availableYears = syncInvestmentSelection();
+  const yearKeys = availableYears.map(String);
+  const normalized = syncRangeSliderPair({
+    startId: "investment-year-range-start",
+    endId: "investment-year-range-end",
+    labelId: "investment-year-range-label",
+    trackId: "investment-year-range-track",
+    startTextId: "investment-year-range-start-text",
+    endTextId: "investment-year-range-end-text",
+    keys: yearKeys,
+    startValue: investmentYearRangeStart,
+    endValue: investmentYearRangeEnd,
+    defaultCount: Math.max(yearKeys.length, 1),
+    formatLabel: (key) => `${key}년`,
+    onChange: (start, end) => {
+      investmentYearRangeStart = start;
+      investmentYearRangeEnd = end;
+      const next = normalizeRangeSelection(yearKeys, investmentYearRangeStart, investmentYearRangeEnd, Math.max(yearKeys.length, 1));
+      investmentYearRangeStart = next.start;
+      investmentYearRangeEnd = next.end;
+      initInvestmentDateSelect();
+      renderInvestmentSummary();
+      renderInvestmentCharts();
+    },
+  });
+  investmentYearRangeStart = normalized.start;
+  investmentYearRangeEnd = normalized.end;
+}
+
+function initInvestmentBreakdownControls() {
+  const periodSelect = document.getElementById("investment-breakdown-period-select");
+  if (!periodSelect) {
+    return;
+  }
+
+  periodSelect.innerHTML = INVESTMENT_PERIOD_OPTIONS
+    .map((item) => `<option value="${item.value}">${item.label}</option>`)
+    .join("");
+  periodSelect.value = investmentBreakdownSelectedPeriod;
+  periodSelect.onchange = () => {
+    investmentBreakdownSelectedPeriod = periodSelect.value;
+    syncInvestmentBreakdownSelection();
+    initInvestmentBreakdownControls();
+    renderInvestmentCharts();
+  };
+
+  const availableYears = syncInvestmentBreakdownSelection();
+  const yearKeys = availableYears.map(String);
+  const normalized = syncRangeSliderPair({
+    startId: "investment-breakdown-range-start",
+    endId: "investment-breakdown-range-end",
+    labelId: "investment-breakdown-range-label",
+    trackId: "investment-breakdown-range-track",
+    startTextId: "investment-breakdown-range-start-text",
+    endTextId: "investment-breakdown-range-end-text",
+    keys: yearKeys,
+    startValue: investmentBreakdownRangeStart,
+    endValue: investmentBreakdownRangeEnd,
+    defaultCount: Math.max(yearKeys.length, 1),
+    formatLabel: (key) => `${key}년`,
+    onChange: (start, end) => {
+      investmentBreakdownRangeStart = start;
+      investmentBreakdownRangeEnd = end;
+      const next = normalizeRangeSelection(yearKeys, investmentBreakdownRangeStart, investmentBreakdownRangeEnd, Math.max(yearKeys.length, 1));
+      investmentBreakdownRangeStart = next.start;
+      investmentBreakdownRangeEnd = next.end;
+      initInvestmentBreakdownControls();
+      renderInvestmentCharts();
+    },
+  });
+  investmentBreakdownRangeStart = normalized.start;
+  investmentBreakdownRangeEnd = normalized.end;
+}
+
+function initInvestmentSourceControls() {
+  const periodSelect = document.getElementById("investment-source-period-select");
+  if (!periodSelect) {
+    return;
+  }
+
+  periodSelect.innerHTML = INVESTMENT_PERIOD_OPTIONS
+    .map((item) => `<option value="${item.value}">${item.label}</option>`)
+    .join("");
+  periodSelect.value = investmentSourceSelectedPeriod;
+  periodSelect.onchange = () => {
+    investmentSourceSelectedPeriod = periodSelect.value;
+    syncInvestmentSourceSelection();
+    initInvestmentSourceControls();
+    renderInvestmentCharts();
+  };
+
+  const availableYears = syncInvestmentSourceSelection();
+  const yearKeys = availableYears.map(String);
+  const normalized = syncRangeSliderPair({
+    startId: "investment-source-range-start",
+    endId: "investment-source-range-end",
+    labelId: "investment-source-range-label",
+    trackId: "investment-source-range-track",
+    startTextId: "investment-source-range-start-text",
+    endTextId: "investment-source-range-end-text",
+    keys: yearKeys,
+    startValue: investmentSourceRangeStart,
+    endValue: investmentSourceRangeEnd,
+    defaultCount: Math.max(yearKeys.length, 1),
+    formatLabel: (key) => `${key}년`,
+    onChange: (start, end) => {
+      investmentSourceRangeStart = start;
+      investmentSourceRangeEnd = end;
+      const next = normalizeRangeSelection(yearKeys, investmentSourceRangeStart, investmentSourceRangeEnd, Math.max(yearKeys.length, 1));
+      investmentSourceRangeStart = next.start;
+      investmentSourceRangeEnd = next.end;
+      initInvestmentSourceControls();
+      renderInvestmentCharts();
+    },
+  });
+  investmentSourceRangeStart = normalized.start;
+  investmentSourceRangeEnd = normalized.end;
 }
 
 function initExportDateSelect() {
   const select = document.getElementById("export-date-select");
+  if (!select) {
+    return;
+  }
+
   if (!exportDates.length) {
     select.innerHTML = "";
     return;
@@ -6621,11 +7403,51 @@ function initExportDateSelect() {
       return `<option value="${key}">${formatExportPeriod(record?.date)}</option>`;
     })
     .join("");
-  select.value = exportDates[exportDates.length - 1];
+  const currentValue = getExportSelectedKey();
+  select.value = exportDates.includes(currentValue) ? currentValue : exportDates[exportDates.length - 1];
   select.onchange = () => {
+    const next = normalizeRangeSelection(exportDates, exportRangeStart, select.value, 5);
+    exportRangeStart = next.start;
+    exportRangeEnd = next.end;
+    initExportDateSelect();
     renderExportSummary();
     renderExportCharts();
   };
+
+  const normalized = syncRangeSliderPair({
+    startId: "export-range-start",
+    endId: "export-range-end",
+    labelId: "export-range-label",
+    trackId: "export-range-track",
+    startTextId: "export-range-start-text",
+    endTextId: "export-range-end-text",
+    keys: exportDates,
+    startValue: exportRangeStart,
+    endValue: exportRangeEnd,
+    defaultCount: 5,
+    formatLabel: (key) => {
+      const record = getExportRecord(key);
+      return formatExportPeriod(record?.date);
+    },
+    onChange: (start, end) => {
+      exportRangeStart = start;
+      exportRangeEnd = end;
+      const next = normalizeRangeSelection(exportDates, exportRangeStart, exportRangeEnd, 5);
+      exportRangeStart = next.start;
+      exportRangeEnd = next.end;
+      const exportSelect = document.getElementById("export-date-select");
+      if (exportSelect) {
+        exportSelect.value = exportRangeEnd;
+      }
+      initExportDateSelect();
+      renderExportSummary();
+      renderExportCharts();
+    },
+  });
+
+  exportRangeStart = normalized.start;
+  exportRangeEnd = normalized.end;
+  select.value = exportRangeEnd || select.value;
 }
 
 function initSmeYearSelect() {
@@ -6649,6 +7471,8 @@ function syncDashboardUi() {
   initLoanYearSelect();
   initLoanRangeControls();
   initInvestmentDateSelect();
+  initInvestmentBreakdownControls();
+  initInvestmentSourceControls();
   initExportDateSelect();
 
   const startupYearSelect = document.getElementById("startup-year-select");

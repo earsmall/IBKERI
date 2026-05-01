@@ -27,7 +27,7 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260419ac" />
+    <link rel="stylesheet" href="./styles.css?v=20260501c" />
   </head>
   <body>
     <main class="phone-shell">
@@ -327,41 +327,117 @@
 
         <section class="tab-panel" data-panel="investment">
           <div class="info-section">
-            <p class="section-subcopy section-subcopy--center">자료: 중소벤처기업부, 한국벤처캐피탈협회</p>
-            <div class="section-head-actions section-head-actions--inline section-head-actions--center">
-              <span class="inline-select-label">기준시점</span>
-              <select id="investment-date-select" class="year-select"></select>
-            </div>
-            <div class="section-head">
-              <div>
+            <div class="section-head section-head-secondary investment-topbar">
+              <div class="business-head-main">
                 <h2>벤처투자</h2>
+                <p class="section-subcopy">자료: 중소벤처기업부, 한국벤처캐피탈협회</p>
+              </div>
+              <div class="section-head-actions section-head-actions--inline section-head-actions--center">
+                <span class="inline-select-label">기준구분</span>
+                <select id="investment-period-select" class="year-select"></select>
+              </div>
+              <div class="business-range-controls investment-range-controls">
+                <div class="business-range-label" id="investment-year-range-label"></div>
+                <div class="dual-range-wrap" id="investment-year-range-track">
+                  <input id="investment-year-range-start" class="range-slider range-slider--start" type="range" />
+                  <input id="investment-year-range-end" class="range-slider range-slider--end" type="range" />
+                </div>
+                <div class="dual-range-meta">
+                  <span id="investment-year-range-start-text"></span>
+                  <span id="investment-year-range-end-text"></span>
+                </div>
               </div>
             </div>
             <div class="startup-summary" id="investment-summary"></div>
             <div class="startup-charts" id="investment-charts"></div>
+            <div class="section-head section-head-secondary loan-topbar loan-panel-separator">
+              <div class="business-head-main">
+                <h2>업력 및 업종별 투자</h2>
+                <p class="section-subcopy">선택한 분기 또는 연간 기준으로 업력 및 업종별 투자 구성을 비교합니다.</p>
+              </div>
+            </div>
+            <div class="investment-breakdown-controls">
+              <div class="investment-breakdown-select-wrap">
+                <span class="inline-select-label">기준구분</span>
+                <select id="investment-breakdown-period-select" class="year-select"></select>
+              </div>
+              <div class="business-range-controls investment-range-controls">
+                <div class="business-range-label" id="investment-breakdown-range-label"></div>
+                <div class="dual-range-wrap" id="investment-breakdown-range-track">
+                  <input id="investment-breakdown-range-start" class="range-slider range-slider--start" type="range" />
+                  <input id="investment-breakdown-range-end" class="range-slider range-slider--end" type="range" />
+                </div>
+                <div class="dual-range-meta">
+                  <span id="investment-breakdown-range-start-text"></span>
+                  <span id="investment-breakdown-range-end-text"></span>
+                </div>
+              </div>
+            </div>
+            <div class="startup-summary" id="investment-breakdown"></div>
+            <div class="startup-charts" id="investment-breakdown-charts"></div>
+            <div class="section-head section-head-secondary loan-topbar loan-panel-separator">
+              <div class="business-head-main">
+                <h2>출자자별 출자</h2>
+                <p class="section-subcopy">정책금융과 민간부문 출자 흐름 및 세부 구성을 함께 보여줍니다.</p>
+              </div>
+            </div>
+            <div class="investment-source-controls">
+              <div class="investment-source-select-wrap">
+                <span class="inline-select-label">기준구분</span>
+                <select id="investment-source-period-select" class="year-select"></select>
+              </div>
+              <div class="business-range-controls investment-range-controls">
+                <div class="business-range-label" id="investment-source-range-label"></div>
+                <div class="dual-range-wrap" id="investment-source-range-track">
+                  <input id="investment-source-range-start" class="range-slider range-slider--start" type="range" />
+                  <input id="investment-source-range-end" class="range-slider range-slider--end" type="range" />
+                </div>
+                <div class="dual-range-meta">
+                  <span id="investment-source-range-start-text"></span>
+                  <span id="investment-source-range-end-text"></span>
+                </div>
+              </div>
+            </div>
+            <div class="startup-summary" id="investment-source"></div>
+            <div class="startup-charts" id="investment-source-charts"></div>
           </div>
         </section>
 
         <section class="tab-panel" data-panel="export">
           <div class="info-section">
-            <p class="section-subcopy section-subcopy--center">자료: 국가데이터처 《기업특성별무역통계》</p>
-            <div class="section-head-actions section-head-actions--inline section-head-actions--center">
-              <span class="inline-select-label">기준시점</span>
-              <select id="export-date-select" class="year-select"></select>
-            </div>
-            <div class="section-head">
-              <div>
+            <div class="section-head section-head-secondary feeling-topbar export-topbar">
+              <div class="business-head-main">
                 <h2>중소기업 수출</h2>
+                <p class="section-subcopy">자료: 국가데이터처 《기업특성별무역통계》</p>
+              </div>
+              <div class="section-head-actions section-head-actions--inline section-head-actions--center export-select-wrap">
+                <span class="inline-select-label">기준시점</span>
+                <select id="export-date-select" class="year-select"></select>
+              </div>
+              <div class="business-inline-summary" id="export-summary"></div>
+            </div>
+            <div class="section-head-actions section-head-actions--center export-range-controls">
+              <div class="business-range-controls">
+                <div class="business-range-label" id="export-range-label"></div>
+                <div class="dual-range-wrap" id="export-range-track">
+                  <input id="export-range-start" class="range-slider range-slider--start" type="range" />
+                  <input id="export-range-end" class="range-slider range-slider--end" type="range" />
+                </div>
+                <div class="dual-range-meta">
+                  <span id="export-range-start-text"></span>
+                  <span id="export-range-end-text"></span>
+                </div>
               </div>
             </div>
-            <div class="startup-summary" id="export-summary"></div>
-            <div class="startup-charts" id="export-charts"></div>
+            <div class="business-panel-layout">
+              <div class="business-panel-charts business-panel-charts--split" id="export-charts"></div>
+            </div>
           </div>
         </section>
       </section>
     </main>
 
     <script src="./data/dashboard-data.js?v=20260417i"></script>
-    <script src="./script.js?v=20260419x"></script>
+    <script src="./script.js?v=20260501c"></script>
   </body>
 </html>
