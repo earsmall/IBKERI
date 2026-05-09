@@ -3323,6 +3323,23 @@ function getExportTopCountries(record = getExportCountryRecord(getExportCountryS
     .slice(0, limit);
 }
 
+function formatExportCountryYoYText(current, previous) {
+  if (
+    current === undefined ||
+    current === null ||
+    Number.isNaN(current) ||
+    previous === undefined ||
+    previous === null ||
+    Number.isNaN(previous) ||
+    previous === 0
+  ) {
+    return "전년대비 -";
+  }
+
+  const growth = ((current - previous) / previous) * 100;
+  return `(전년대비 ${growth > 0 ? "+" : ""}${formatNumber(growth, 1)}%)`;
+}
+
 function getPreviousYearExportRecord(series, key = getExportSelectedKey()) {
   const current = series.find((item) => item.key === key) || null;
   if (!current) {
@@ -7622,40 +7639,32 @@ function renderExportCountryTopList() {
   }
 
   const record = getExportCountryRecord(getExportCountrySelectedKey());
-  const topCountries = getExportTopCountries(record);
+  const countryOrder = ["중국", "미국", "베트남", "홍콩", "일본"];
+  const allCountries = getExportTopCountries(record, 100);
+  const previousRecord = getPreviousYearExportRecord(exportCountrySeries, record?.key);
+  const previousCountries = getExportTopCountries(previousRecord, 100);
+  const topCountries = countryOrder.map((name) => allCountries.find((item) => item.name === name) || { name, amount: null, share: null });
   const periodLabel = formatExportPeriod(record?.date);
   const palette = ["#2c7be5", "#d04a42", "#2f8f6b", "#d4a72c", "#6f5bd3"];
-  const totalValue = topCountries.reduce((sum, item) => sum + item.amount, 0);
-  const segments = [];
-  let cursor = 0;
-  topCountries.forEach((item, index) => {
-    const share = totalValue > 0 ? (item.amount / totalValue) * 100 : 0;
-    const start = cursor;
-    const end = cursor + share;
-    segments.push(`${palette[index % palette.length]} ${start}% ${end}%`);
-    cursor = end;
-  });
 
-  if (!topCountries.length) {
+  if (!record || !allCountries.length) {
     list.innerHTML = `<div class="business-summary-empty">${exportLoadError || "국가별 수출 데이터를 불러오는 중입니다."}</div>`;
     return;
   }
 
   list.innerHTML = `
     <article class="export-country-top-card">
-      <div class="business-summary-caption">최근 수치 ${periodLabel}</div>
+      <div class="business-summary-caption">최신 수치 ${periodLabel}</div>
       <div class="export-country-top-layout">
-        <div class="investment-pie" style="--pie-fill:${segments.join(", ")};"></div>
         <div class="export-country-top-legend">
           ${topCountries
             .map(
               (item, index) => `
                 <div class="export-country-top-row" style="--legend-color:${palette[index % palette.length]};">
-                  <span class="investment-pie-legend-swatch" style="--legend-color:${palette[index % palette.length]};"></span>
-                  <div class="export-country-rank">${index + 1}</div>
-                  <div class="export-country-name">${item.name}</div>
+                  <div class="export-country-name"><span class="export-country-rank">${index + 1}</span>${item.name}</div>
                   <div class="export-country-value">${formatExportAmount(item.amount)}</div>
                   <div class="export-country-share">비중 ${item.share === null ? "-" : `${formatNumber(item.share, 1)}%`}</div>
+                  <div class="export-country-yoy">${formatExportCountryYoYText(item.amount, previousCountries.find((previousItem) => previousItem.name === item.name)?.amount)}</div>
                 </div>
               `,
             )
