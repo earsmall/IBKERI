@@ -69,12 +69,12 @@ const INVESTMENT_JSON_URL = "./data/investment.json?v=20260417";
 const LOAN_JSON_CACHE_KEY = "loan_json_payload_v1";
 const INVESTMENT_JSON_CACHE_KEY = "investment_json_payload_v1";
 const EXPORT_SUMMARY_API_URL =
-  "https://kosis.kr/openapi/Param/statisticsParameterData.do?method=getList&apiKey=ZDNhYjg4YmEwOTQzMGE1ZWFhOTA5NWQxMTI3YThiZGI=&itmId=T10+T20+&objL1=01+&objL2=00+10+20+30+40+50+&objL3=&objL4=&objL5=&objL6=&objL7=&objL8=&format=json&jsonVD=Y&prdSe=Y&startPrdDe=2015&endPrdDe=2025&outputFields=ORG_ID+TBL_NM+OBJ_NM+NM+ITM_NM+UNIT_NM+PRD_SE+PRD_DE+LST_CHN_DE+&orgId=101&tblId=DT_1TEC_P116";
+  "https://kosis.kr/openapi/Param/statisticsParameterData.do?method=getList&apiKey=ZDNhYjg4YmEwOTQzMGE1ZWFhOTA5NWQxMTI3YThiZGI=&itmId=T10+T20+&objL1=01+&objL2=10+11+12+13+14+15+1801+1802+1803+1804+1805+1806+1807+2301+2304+&objL3=00+30+&objL4=&objL5=&objL6=&objL7=&objL8=&format=json&jsonVD=Y&prdSe=Q&startPrdDe=201501&endPrdDe=202504&outputFields=ORG_ID+TBL_ID+TBL_NM+OBJ_NM+NM+ITM_ID+ITM_NM+UNIT_NM+PRD_SE+PRD_DE+LST_CHN_DE+&orgId=101&tblId=DT_1TEC_P227";
 const EXPORT_COUNTRY_API_URL =
-  "https://kosis.kr/openapi/Param/statisticsParameterData.do?method=getList&apiKey=ZDNhYjg4YmEwOTQzMGE1ZWFhOTA5NWQxMTI3YThiZGI=&itmId=T20+&objL1=01+&objL2=10+11+12+13+14+15+1701+1702+1703+1704+1705+1706+1707+1708+1709+1710+1711+1712+1713+1714+1715+1716+1717+1718+1719+1720+1721+1722+1723+1724+1725+1726+1727+1728+1801+1802+1803+1804+1805+1806+1807+1901+1902+2001+2002+2003+2004+2005+2101+2301+2302+2303+2304+2305+2306+2307+&objL3=30+&objL4=&objL5=&objL6=&objL7=&objL8=&format=json&jsonVD=Y&prdSe=Y&startPrdDe=2015&endPrdDe=2025&outputFields=ORG_ID+TBL_NM+OBJ_NM+NM+ITM_NM+UNIT_NM+PRD_SE+PRD_DE+LST_CHN_DE+&orgId=101&tblId=DT_1TEC_P227";
+  EXPORT_SUMMARY_API_URL;
 const EXPORT_SUMMARY_CACHE_KEY = "export_summary_snapshot_v2";
 const EXPORT_COUNTRY_CACHE_KEY = "export_country_snapshot_v3";
-const EXPORT_JSON_URL = "./data/export.json?v=20260417";
+const EXPORT_JSON_URL = "./data/export.json?v=20260505c";
 const EXPORT_JSON_CACHE_KEY = "export_json_payload_v1";
 const HOME_SCREEN_SEEN_KEY = "dashboard_home_seen_v1";
 const LAST_ACTIVE_TAB_KEY = "dashboard_last_active_tab_v1";
@@ -158,6 +158,9 @@ let exportCountrySeries = [];
 let exportDates = [];
 let exportRangeStart = "";
 let exportRangeEnd = "";
+let exportCountryRangeStart = "";
+let exportCountryRangeEnd = "";
+let exportSelectedCountries = [];
 let businessCompositeSeries = [];
 let businessSeries = [];
 let businessDates = [];
@@ -888,12 +891,15 @@ async function refreshExportData() {
     exportCountrySeries = countrySeries;
     exportDates = exportSeries.map((item) => item.key);
     initExportDateSelect();
+    initExportCountryControls();
     renderExportSummary();
     renderExportCharts();
+    renderExportCountrySection();
   } catch (error) {
     exportLoadError = `오류: ${error.message}`;
     renderExportSummary();
     renderExportCharts();
+    renderExportCountrySection();
   } finally {
     if (button) {
       button.disabled = false;
@@ -3080,7 +3086,7 @@ async function loadExportApi(url, cacheKey) {
     const payload = await loadExportJsonPayload();
     const rawRows = readStaticRows(
       payload,
-      cacheKey === EXPORT_SUMMARY_CACHE_KEY ? "summaryRows" : "countryRows",
+      payload.rows ? "rows" : cacheKey === EXPORT_SUMMARY_CACHE_KEY ? "summaryRows" : "countryRows",
       "수출 JSON 데이터 형식을 확인해 주세요.",
     );
     writeExportSnapshot(cacheKey, rawRows);
@@ -3099,93 +3105,114 @@ function parseExportSummaryApiRows(rows) {
   const byYear = {};
 
   rows.forEach((row) => {
-    const year = String(row?.PRD_DE || "").trim();
-    const companyType = String(row?.C2_NM || "").trim();
+    const period = String(row?.PRD_DE || "").trim();
+    const pointDate = parseExportPoint(period);
+    const secondName = String(row?.C2_NM || "").trim();
+    const thirdName = String(row?.C3_NM || "").trim();
+    const isN227Shape = row?.TBL_ID === "DT_1TEC_N227";
+    const country = isN227Shape ? thirdName : secondName;
+    const companyType = isN227Shape ? secondName : thirdName;
     const itemName = String(row?.ITM_NM || "").trim();
     const value = parseNumeric(row?.DT);
 
-    if (!/^\d{4}$/.test(year) || !companyType || Number.isNaN(value)) {
+    if (!pointDate || !period || !companyType || Number.isNaN(value)) {
       return;
     }
 
-    if (!byYear[year]) {
-      byYear[year] = {
-        date: new Date(Number(year), 0, 1),
-        key: year,
-        year: Number(year),
-        month: 1,
+    if (country && country !== "계") {
+      return;
+    }
+
+    if (!byYear[period]) {
+      byYear[period] = {
+        date: pointDate,
+        key: period,
+        year: pointDate.getFullYear(),
+        month: pointDate.getMonth() + 1,
       };
     }
 
     if (itemName === "기업수") {
-      if (companyType === "계") byYear[year]["전체 기업 수"] = value;
-      if (companyType === "중소기업") byYear[year]["중소기업 기업 수"] = value;
-      if (companyType === "대기업") byYear[year]["대기업 기업 수"] = value;
-      if (companyType === "중견기업") byYear[year]["중견기업 기업 수"] = value;
+      if (companyType === "계") byYear[period]["전체 기업 수"] = value;
+      if (companyType === "중소기업") byYear[period]["중소기업 기업 수"] = value;
+      if (companyType === "대기업") byYear[period]["대기업 기업 수"] = value;
+      if (companyType === "중견기업") byYear[period]["중견기업 기업 수"] = value;
     }
 
     if (itemName === "교역액") {
-      if (companyType === "계") byYear[year]["전체 수출금액"] = value;
-      if (companyType === "중소기업") byYear[year]["중소기업 수출금액"] = value;
-      if (companyType === "대기업") byYear[year]["대기업 수출금액"] = value;
-      if (companyType === "중견기업") byYear[year]["중견기업 수출금액"] = value;
+      if (companyType === "계") byYear[period]["전체 수출금액"] = value;
+      if (companyType === "중소기업") byYear[period]["중소기업 수출금액"] = value;
+      if (companyType === "대기업") byYear[period]["대기업 수출금액"] = value;
+      if (companyType === "중견기업") byYear[period]["중견기업 수출금액"] = value;
     }
   });
 
-  return Object.values(byYear).sort((a, b) => a.year - b.year);
+  return Object.values(byYear).sort((a, b) => a.date - b.date);
 }
 
 function parseExportCountryApiRows(rows) {
   const byYear = {};
 
   rows.forEach((row) => {
-    const year = String(row?.PRD_DE || "").trim();
-    const country = String(row?.C2_NM || "").trim();
-    const companyType = String(row?.C3_NM || "").trim();
+    const period = String(row?.PRD_DE || "").trim();
+    const pointDate = parseExportPoint(period);
+    const secondName = String(row?.C2_NM || "").trim();
+    const thirdName = String(row?.C3_NM || "").trim();
+    const isN227Shape = row?.TBL_ID === "DT_1TEC_N227";
+    const country = isN227Shape ? thirdName : secondName;
+    const companyType = isN227Shape ? secondName : thirdName;
+    const itemName = String(row?.ITM_NM || "").trim();
     const value = parseNumeric(row?.DT);
 
-    if (!/^\d{4}$/.test(year) || !country || Number.isNaN(value) || (companyType && companyType !== "중소기업")) {
+    if (!pointDate || !period || !country || Number.isNaN(value) || (companyType && companyType !== "중소기업")) {
       return;
     }
 
-    if (!byYear[year]) {
-      byYear[year] = {
-        date: new Date(Number(year), 0, 1),
-        key: year,
-        year: Number(year),
-        month: 1,
+    if (!byYear[period]) {
+      byYear[period] = {
+        date: pointDate,
+        key: period,
+        year: pointDate.getFullYear(),
+        month: pointDate.getMonth() + 1,
       };
     }
 
-    byYear[year][`${country} 수출금액`] = value;
+    if (itemName === "기업수") {
+      byYear[period][`${country} 기업 수`] = value;
+    }
+
+    if (itemName === "교역액") {
+      byYear[period][`${country} 수출금액`] = value;
+    }
   });
 
-  return Object.values(byYear).sort((a, b) => a.year - b.year);
+  return Object.values(byYear).sort((a, b) => a.date - b.date);
 }
 
 async function loadExportData() {
-  const [summaryRows, countryRows] = await Promise.all([
-    loadExportApi(EXPORT_SUMMARY_API_URL, EXPORT_SUMMARY_CACHE_KEY),
-    loadExportApi(EXPORT_COUNTRY_API_URL, EXPORT_COUNTRY_CACHE_KEY),
-  ]);
+  const rows = await loadExportApi(EXPORT_SUMMARY_API_URL, EXPORT_SUMMARY_CACHE_KEY);
+  try {
+    window.localStorage.removeItem(EXPORT_COUNTRY_CACHE_KEY);
+  } catch (error) {
+    // Ignore local cache errors.
+  }
 
   return {
-    series: parseExportSummaryApiRows(summaryRows),
-    countrySeries: parseExportCountryApiRows(countryRows),
+    series: parseExportSummaryApiRows(rows),
+    countrySeries: parseExportCountryApiRows(rows),
   };
 }
 
 function readCachedExportData() {
   const summaryRows = readExportSnapshot(EXPORT_SUMMARY_CACHE_KEY);
-  const countryRows = readExportSnapshot(EXPORT_COUNTRY_CACHE_KEY);
 
-  if (!summaryRows.length && !countryRows.length) {
+  if (!summaryRows.length) {
     return null;
   }
 
   return {
     series: parseExportSummaryApiRows(summaryRows),
-    countrySeries: parseExportCountryApiRows(countryRows),
+    countrySeries: parseExportCountryApiRows(summaryRows),
   };
 }
 
@@ -3205,6 +3232,13 @@ function parseExportPoint(value) {
   const yearMatch = stringValue.match(/^(\d{4})$/);
   if (yearMatch) {
     return new Date(Number(yearMatch[1]), 0, 1);
+  }
+
+  const kosisQuarterMatch = stringValue.match(/^(\d{4})(0[1-4])$/);
+  if (kosisQuarterMatch) {
+    const year = Number(kosisQuarterMatch[1]);
+    const quarter = Number(kosisQuarterMatch[2]);
+    return new Date(year, quarter * 3 - 1, 1);
   }
 
   const quarterMatch = stringValue.match(/^(\d{4})\s*[.\-\/]\s*([1-4])\s*\/\s*4$/);
@@ -3240,8 +3274,7 @@ function formatExportPeriod(date) {
 }
 
 function getExportSelectedKey() {
-  const select = document.getElementById("export-date-select");
-  return select?.value || exportDates[exportDates.length - 1] || "";
+  return exportRangeEnd || exportDates[exportDates.length - 1] || "";
 }
 
 function getExportRecord(key = getExportSelectedKey()) {
@@ -3250,6 +3283,44 @@ function getExportRecord(key = getExportSelectedKey()) {
 
 function getExportCountryRecord(key = getExportSelectedKey()) {
   return exportCountrySeries.find((item) => item.key === key) || null;
+}
+
+function getExportCountrySelectedKey() {
+  return exportCountryRangeEnd || exportCountrySeries[exportCountrySeries.length - 1]?.key || "";
+}
+
+function getExportCountryRangeSeries() {
+  if (!exportCountrySeries.length) {
+    return [];
+  }
+  return filterSeriesByRange(exportCountrySeries, exportCountryRangeStart, exportCountryRangeEnd);
+}
+
+function getExportCountryNameSet(record) {
+  return new Set(
+    Object.keys(record || {})
+      .filter((key) => key.endsWith(" 수출금액") && key !== "계 수출금액")
+      .map((key) => key.replace(/ 수출금액$/, "")),
+  );
+}
+
+function getExportTopCountries(record = getExportCountryRecord(getExportCountrySelectedKey()), limit = 5) {
+  const excludedCountryNames = new Set(["EU27", "EU28", "동남아", "중동", "중남미", "그 외 지역", "기타"]);
+  const countryTotal = record?.["계 수출금액"] ?? 0;
+  return Object.entries(record || {})
+    .filter(([key, value]) => key.endsWith(" 수출금액") && key !== "계 수출금액" && value !== undefined && value !== null && !Number.isNaN(value))
+    .map(([key, value]) => {
+      const name = key.replace(/ 수출금액$/, "");
+      return {
+        name,
+        amount: value,
+        count: record?.[`${name} 기업 수`],
+        share: countryTotal > 0 ? (value / countryTotal) * 100 : null,
+      };
+    })
+    .filter((item) => !excludedCountryNames.has(item.name))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, limit);
 }
 
 function getPreviousYearExportRecord(series, key = getExportSelectedKey()) {
@@ -3389,6 +3460,388 @@ function renderExportShareLineChart({ title, points, valueKey, totalKey, colorVa
                   <circle class="sme-share-point" cx="${point.x}" cy="${point.y}" r="3.5"></circle>
                   <text class="sme-share-label" x="${point.x}" y="${Math.max(12, point.y - 8)}">${formatNumber(point.share, 1)}%</text>
                   <text class="sme-share-year" x="${point.x}" y="${height - 4}">${point.label}</text>
+                </g>
+              `,
+            )
+            .join("")}
+        </svg>
+      </div>
+    </article>
+  `;
+}
+
+function renderExportLineChart({ title, points, valueKey, type = "amount", colorValue }) {
+  const validPoints = points
+    .map((item) => {
+      const value = item?.[valueKey];
+      if (value === undefined || value === null || Number.isNaN(value)) {
+        return null;
+      }
+      return {
+        label: formatExportPeriod(item.date),
+        value,
+      };
+    })
+    .filter(Boolean);
+
+  if (!validPoints.length) {
+    return "";
+  }
+
+  const values = validPoints.map((point) => point.value);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const range = Math.max(maxValue - minValue, 1);
+  const width = 360;
+  const height = 150;
+  const paddingX = 24;
+  const paddingTop = 20;
+  const paddingBottom = 32;
+  const usableWidth = width - paddingX * 2;
+  const usableHeight = height - paddingTop - paddingBottom;
+  const xStep = validPoints.length === 1 ? 0 : usableWidth / (validPoints.length - 1);
+  const plotted = validPoints.map((point, index) => ({
+    ...point,
+    x: paddingX + xStep * index,
+    y: paddingTop + ((maxValue - point.value) / range) * usableHeight,
+    isEndpoint: index === 0 || index === validPoints.length - 1,
+    textAnchor: index === 0 ? "start" : index === validPoints.length - 1 ? "end" : "middle",
+  }));
+  const path = plotted.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const formatValue = type === "count" ? formatExportCompanyCount : formatExportAmount;
+
+  return `
+    <article class="startup-chart-card business-chart-card">
+      <div class="startup-chart-head">
+        <div class="startup-chart-title">${title}</div>
+      </div>
+      <div class="sme-share-chart">
+        <svg class="sme-share-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true" style="--share-line-color:${colorValue};">
+          <path class="sme-share-line" d="${path}"></path>
+          ${plotted
+            .map(
+              (point) => `
+                <g>
+                  <circle class="sme-share-point" cx="${point.x}" cy="${point.y}" r="3.5"></circle>
+                  ${
+                    point.isEndpoint
+                      ? `
+                        <text class="sme-share-label" x="${point.x}" y="${Math.max(12, point.y - 8)}" text-anchor="${point.textAnchor}">${formatValue(point.value).replace(/<[^>]+>/g, "")}</text>
+                        <text class="sme-share-year" x="${point.x}" y="${height - 5}" text-anchor="${point.textAnchor}">${point.label}</text>
+                      `
+                      : ""
+                  }
+                </g>
+              `,
+            )
+            .join("")}
+        </svg>
+      </div>
+    </article>
+  `;
+}
+
+function renderExportYoYLineChart({ title, points, sourceSeries = exportSeries, valueKey, colorValue }) {
+  const validPoints = points
+    .map((item) => {
+      const currentValue = item?.[valueKey];
+      const previous = sourceSeries.find(
+        (candidate) =>
+          candidate.year === item.year - 1 &&
+          candidate.month === item.month,
+      );
+      const previousValue = previous?.[valueKey];
+      if (
+        currentValue === undefined ||
+        currentValue === null ||
+        previousValue === undefined ||
+        previousValue === null ||
+        previousValue === 0 ||
+        Number.isNaN(currentValue) ||
+        Number.isNaN(previousValue)
+      ) {
+        return null;
+      }
+      return {
+        label: formatExportPeriod(item.date),
+        value: ((currentValue - previousValue) / previousValue) * 100,
+      };
+    })
+    .filter(Boolean);
+
+  if (!validPoints.length) {
+    return "";
+  }
+
+  const values = validPoints.map((point) => point.value);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const range = Math.max(maxValue - minValue, 1);
+  const width = 360;
+  const height = 150;
+  const paddingX = 24;
+  const paddingTop = 20;
+  const paddingBottom = 32;
+  const usableWidth = width - paddingX * 2;
+  const usableHeight = height - paddingTop - paddingBottom;
+  const xStep = validPoints.length === 1 ? 0 : usableWidth / (validPoints.length - 1);
+  const plotted = validPoints.map((point, index) => ({
+    ...point,
+    x: paddingX + xStep * index,
+    y: paddingTop + ((maxValue - point.value) / range) * usableHeight,
+    isEndpoint: index === 0 || index === validPoints.length - 1,
+    textAnchor: index === 0 ? "start" : index === validPoints.length - 1 ? "end" : "middle",
+  }));
+  const path = plotted.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+
+  return `
+    <article class="startup-chart-card business-chart-card">
+      <div class="startup-chart-head">
+        <div class="startup-chart-title">${title}</div>
+      </div>
+      <div class="sme-share-chart">
+        <svg class="sme-share-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true" style="--share-line-color:${colorValue};">
+          <path class="sme-share-line" d="${path}"></path>
+          ${plotted
+            .map(
+              (point) => `
+                <g>
+                  <circle class="sme-share-point" cx="${point.x}" cy="${point.y}" r="3.5"></circle>
+                  ${
+                    point.isEndpoint
+                      ? `
+                        <text class="sme-share-label" x="${point.x}" y="${Math.max(12, point.y - 8)}" text-anchor="${point.textAnchor}">${formatNumber(point.value, 1)}%</text>
+                        <text class="sme-share-year" x="${point.x}" y="${height - 5}" text-anchor="${point.textAnchor}">${point.label}</text>
+                      `
+                      : ""
+                  }
+                </g>
+              `,
+            )
+            .join("")}
+        </svg>
+      </div>
+    </article>
+  `;
+}
+
+function renderExportMultiCountryLineChart({ title, points, countries, valueSuffix, type = "amount" }) {
+  const palette = ["#2c7be5", "#d04a42", "#2f8f6b", "#d4a72c", "#6f5bd3"];
+  const series = countries
+    .map((country, index) => {
+      const valueKey = `${country} ${valueSuffix}`;
+      const seriesPoints = points
+        .map((item) => {
+          const value = item?.[valueKey];
+          if (value === undefined || value === null || Number.isNaN(value)) {
+            return null;
+          }
+          return {
+            label: formatExportPeriod(item.date),
+            value,
+          };
+        })
+        .filter(Boolean);
+      return {
+        country,
+        color: palette[index % palette.length],
+        points: seriesPoints,
+      };
+    })
+    .filter((item) => item.points.length);
+
+  if (!series.length) {
+    return `
+      <article class="startup-chart-card business-chart-card">
+        <div class="startup-chart-head">
+          <div class="startup-chart-title">${title}</div>
+        </div>
+        <div class="business-summary-empty">선택한 국가의 데이터가 없습니다.</div>
+      </article>
+    `;
+  }
+
+  const allValues = series.flatMap((item) => item.points.map((point) => point.value));
+  const minValue = Math.min(...allValues);
+  const maxValue = Math.max(...allValues);
+  const range = Math.max(maxValue - minValue, 1);
+  const width = 360;
+  const height = 150;
+  const paddingX = 24;
+  const paddingTop = 20;
+  const paddingBottom = 32;
+  const usableWidth = width - paddingX * 2;
+  const usableHeight = height - paddingTop - paddingBottom;
+  const formatValue = type === "count" ? formatExportCompanyCount : formatExportAmount;
+
+  const renderedSeries = series.map((item) => {
+    const xStep = item.points.length === 1 ? 0 : usableWidth / (item.points.length - 1);
+    const plotted = item.points.map((point, index) => ({
+      ...point,
+      x: paddingX + xStep * index,
+      y: paddingTop + ((maxValue - point.value) / range) * usableHeight,
+      isEndpoint: index === 0 || index === item.points.length - 1,
+      textAnchor: index === 0 ? "start" : index === item.points.length - 1 ? "end" : "middle",
+    }));
+    return {
+      ...item,
+      plotted,
+      path: plotted.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" "),
+    };
+  });
+
+  return `
+    <article class="startup-chart-card business-chart-card">
+      <div class="startup-chart-head">
+        <div class="startup-chart-title">${title}</div>
+      </div>
+      <div class="export-country-line-legend">
+        ${renderedSeries
+          .map((item) => `<span class="export-country-line-legend-item" style="--legend-color:${item.color};">${item.country}</span>`)
+          .join("")}
+      </div>
+      <div class="sme-share-chart">
+        <svg class="sme-share-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          ${renderedSeries
+            .map(
+              (item) => `
+                <g style="--share-line-color:${item.color};">
+                  <path class="sme-share-line" d="${item.path}"></path>
+                  ${item.plotted
+                    .map(
+                      (point) => `
+                        <circle class="sme-share-point" cx="${point.x}" cy="${point.y}" r="3.2"></circle>
+                        ${
+                          point.isEndpoint
+                            ? `
+                              <text class="sme-share-label" x="${point.x}" y="${Math.max(12, point.y - 8)}" text-anchor="${point.textAnchor}">${formatValue(point.value).replace(/<[^>]+>/g, "")}</text>
+                              <text class="sme-share-year" x="${point.x}" y="${height - 5}" text-anchor="${point.textAnchor}">${point.label}</text>
+                            `
+                            : ""
+                        }
+                      `,
+                    )
+                    .join("")}
+                </g>
+              `,
+            )
+            .join("")}
+        </svg>
+      </div>
+    </article>
+  `;
+}
+
+function renderExportMultiCountryYoYLineChart({ title, points, sourceSeries = exportCountrySeries, countries, valueSuffix }) {
+  const palette = ["#2c7be5", "#d04a42", "#2f8f6b", "#d4a72c", "#6f5bd3"];
+  const series = countries
+    .map((country, index) => {
+      const valueKey = `${country} ${valueSuffix}`;
+      const seriesPoints = points
+        .map((item) => {
+          const currentValue = item?.[valueKey];
+          const previous = sourceSeries.find(
+            (candidate) =>
+              candidate.year === item.year - 1 &&
+              candidate.month === item.month,
+          );
+          const previousValue = previous?.[valueKey];
+          if (
+            currentValue === undefined ||
+            currentValue === null ||
+            previousValue === undefined ||
+            previousValue === null ||
+            previousValue === 0 ||
+            Number.isNaN(currentValue) ||
+            Number.isNaN(previousValue)
+          ) {
+            return null;
+          }
+          return {
+            label: formatExportPeriod(item.date),
+            value: ((currentValue - previousValue) / previousValue) * 100,
+          };
+        })
+        .filter(Boolean);
+      return {
+        country,
+        color: palette[index % palette.length],
+        points: seriesPoints,
+      };
+    })
+    .filter((item) => item.points.length);
+
+  if (!series.length) {
+    return `
+      <article class="startup-chart-card business-chart-card">
+        <div class="startup-chart-head">
+          <div class="startup-chart-title">${title}</div>
+        </div>
+        <div class="business-summary-empty">전년동기대비 증가율 데이터가 없습니다.</div>
+      </article>
+    `;
+  }
+
+  const allValues = series.flatMap((item) => item.points.map((point) => point.value));
+  const minValue = Math.min(...allValues);
+  const maxValue = Math.max(...allValues);
+  const range = Math.max(maxValue - minValue, 1);
+  const width = 360;
+  const height = 150;
+  const paddingX = 24;
+  const paddingTop = 20;
+  const paddingBottom = 32;
+  const usableWidth = width - paddingX * 2;
+  const usableHeight = height - paddingTop - paddingBottom;
+
+  const renderedSeries = series.map((item) => {
+    const xStep = item.points.length === 1 ? 0 : usableWidth / (item.points.length - 1);
+    const plotted = item.points.map((point, index) => ({
+      ...point,
+      x: paddingX + xStep * index,
+      y: paddingTop + ((maxValue - point.value) / range) * usableHeight,
+      isEndpoint: index === 0 || index === item.points.length - 1,
+      textAnchor: index === 0 ? "start" : index === item.points.length - 1 ? "end" : "middle",
+    }));
+    return {
+      ...item,
+      plotted,
+      path: plotted.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" "),
+    };
+  });
+
+  return `
+    <article class="startup-chart-card business-chart-card">
+      <div class="startup-chart-head">
+        <div class="startup-chart-title">${title}</div>
+      </div>
+      <div class="export-country-line-legend">
+        ${renderedSeries
+          .map((item) => `<span class="export-country-line-legend-item" style="--legend-color:${item.color};">${item.country}</span>`)
+          .join("")}
+      </div>
+      <div class="sme-share-chart">
+        <svg class="sme-share-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          ${renderedSeries
+            .map(
+              (item) => `
+                <g style="--share-line-color:${item.color};">
+                  <path class="sme-share-line" d="${item.path}"></path>
+                  ${item.plotted
+                    .map(
+                      (point) => `
+                        <circle class="sme-share-point" cx="${point.x}" cy="${point.y}" r="3.2"></circle>
+                        ${
+                          point.isEndpoint
+                            ? `
+                              <text class="sme-share-label" x="${point.x}" y="${Math.max(12, point.y - 8)}" text-anchor="${point.textAnchor}">${formatNumber(point.value, 1)}%</text>
+                              <text class="sme-share-year" x="${point.x}" y="${height - 5}" text-anchor="${point.textAnchor}">${point.label}</text>
+                            `
+                            : ""
+                        }
+                      `,
+                    )
+                    .join("")}
                 </g>
               `,
             )
@@ -7075,6 +7528,10 @@ function renderExportSummary() {
 
   const current = getExportRecord();
   const previous = getPreviousYearExportRecord(exportSeries);
+  const hasCompanyCount =
+    current?.["중소기업 기업 수"] !== undefined &&
+    current?.["중소기업 기업 수"] !== null &&
+    !Number.isNaN(current?.["중소기업 기업 수"]);
   const companyShare =
     current?.["전체 기업 수"] && current?.["중소기업 기업 수"] !== undefined
       ? (current["중소기업 기업 수"] / current["전체 기업 수"]) * 100
@@ -7087,14 +7544,20 @@ function renderExportSummary() {
   summary.innerHTML = `
     <div class="business-summary-caption">최신 수치</div>
     <div class="business-summary-inline-grid">
-      <div class="business-summary-inline-item">
-        <div class="startup-kicker">${formatExportPeriod(current?.date)} 수출 중소기업 수</div>
-        <div class="business-inline-value">
-          <div class="business-inline-number">${formatExportCompanyCount(current?.["중소기업 기업 수"])}</div>
-          <div class="startup-subvalue">(비중: <span class="startup-share-value">${companyShare === null ? "-" : `${formatNumber(companyShare, 1)}%`}</span>)</div>
-          ${previous ? `<div class="business-inline-delta">${formatYoYGrowth(current?.["중소기업 기업 수"], previous?.["중소기업 기업 수"])}</div>` : ""}
-        </div>
-      </div>
+      ${
+        hasCompanyCount
+          ? `
+            <div class="business-summary-inline-item">
+              <div class="startup-kicker">${formatExportPeriod(current?.date)} 수출 중소기업 수</div>
+              <div class="business-inline-value">
+                <div class="business-inline-number">${formatExportCompanyCount(current?.["중소기업 기업 수"])}</div>
+                <div class="startup-subvalue">(비중: <span class="startup-share-value">${companyShare === null ? "-" : `${formatNumber(companyShare, 1)}%`}</span>)</div>
+                ${previous ? `<div class="business-inline-delta">${formatYoYGrowth(current?.["중소기업 기업 수"], previous?.["중소기업 기업 수"])}</div>` : ""}
+              </div>
+            </div>
+          `
+          : ""
+      }
       <div class="business-summary-inline-item">
         <div class="startup-kicker">${formatExportPeriod(current?.date)} 중소기업 수출금액</div>
         <div class="business-inline-value">
@@ -7118,95 +7581,178 @@ function renderExportCharts() {
     return;
   }
 
-  const current = getExportRecord();
-  const currentCountry = getExportCountryRecord();
-  const previousCountry = getPreviousYearExportRecord(exportCountrySeries);
   const filteredExport = getExportChartSeries(exportSeries);
-  const countryPalette = ["#d04a42", "#6f5bd3", "#2f8f6b", "#d4a72c", "#7d8796"];
-  const excludedCountryNames = new Set(["EU27", "EU28", "동남아", "중동", "중남미", "그 외 지역"]);
-  const countryTotal =
-    currentCountry?.["계 수출금액"] ??
-    current?.["중소기업 수출금액"] ??
-    0;
-  const topCountries = Object.entries(currentCountry || {})
-    .filter(([key, value]) => key.endsWith(" 수출금액") && key !== "계 수출금액" && value !== undefined && value !== null && !Number.isNaN(value))
-    .map(([key, value]) => ({
-      name: key.replace(/ 수출금액$/, ""),
-      key,
-      value,
-      previousValue: previousCountry?.[key],
-      share: countryTotal > 0 ? (value / countryTotal) * 100 : null,
-    }))
-    .filter((item) => !excludedCountryNames.has(item.name))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 5)
-    .map((item, index) => ({
-      ...item,
-      color: countryPalette[index % countryPalette.length],
-    }));
-  const otherCountryValue = Math.max(0, countryTotal - topCountries.reduce((sum, item) => sum + item.value, 0));
-  const pieItems = [
-    ...topCountries,
-    ...(otherCountryValue > 0 ? [{ name: "기타", value: otherCountryValue, color: "#94a3b8" }] : []),
-  ];
 
   charts.innerHTML = [
-    renderExportBarChart({
+    renderExportLineChart({
       title: "수출 중소기업 수",
       points: filteredExport,
-      key: "중소기업 기업 수",
+      valueKey: "중소기업 기업 수",
       type: "count",
       colorValue: "#2c7be5",
     }),
-    renderExportShareLineChart({
-      title: "수출 중소기업 비중",
-      points: filteredExport,
-      valueKey: "중소기업 기업 수",
-      totalKey: "전체 기업 수",
-      colorValue: "#2c7be5",
-    }),
-    renderExportBarChart({
+    renderExportLineChart({
       title: "중소기업 수출금액",
       points: filteredExport,
-      key: "중소기업 수출금액",
+      valueKey: "중소기업 수출금액",
       type: "amount",
-      colorValue: "#59a7ff",
+      colorValue: "#d04a42",
     }),
-    renderExportShareLineChart({
-      title: "중소기업 수출금액 비중",
+    renderExportYoYLineChart({
+      title: "수출 중소기업 수 전년동기대비 증가율",
+      points: filteredExport,
+      valueKey: "중소기업 기업 수",
+      colorValue: "#2c7be5",
+    }),
+    renderExportYoYLineChart({
+      title: "중소기업 수출금액 전년동기대비 증가율",
       points: filteredExport,
       valueKey: "중소기업 수출금액",
-      totalKey: "전체 수출금액",
-      colorValue: "#59a7ff",
+      colorValue: "#d04a42",
     }),
-    `
-      <article class="startup-chart-card">
-        <div class="startup-chart-head">
-          <div class="startup-chart-title">중소기업 주요 수출국</div>
-        </div>
-        <div class="startup-summary-grid">
+  ]
+    .filter(Boolean)
+    .join("");
+}
+
+function renderExportCountryTopList() {
+  const list = document.getElementById("export-country-top-list");
+  if (!list) {
+    return;
+  }
+
+  const record = getExportCountryRecord(getExportCountrySelectedKey());
+  const topCountries = getExportTopCountries(record);
+  const periodLabel = formatExportPeriod(record?.date);
+  const palette = ["#2c7be5", "#d04a42", "#2f8f6b", "#d4a72c", "#6f5bd3"];
+  const totalValue = topCountries.reduce((sum, item) => sum + item.amount, 0);
+  const segments = [];
+  let cursor = 0;
+  topCountries.forEach((item, index) => {
+    const share = totalValue > 0 ? (item.amount / totalValue) * 100 : 0;
+    const start = cursor;
+    const end = cursor + share;
+    segments.push(`${palette[index % palette.length]} ${start}% ${end}%`);
+    cursor = end;
+  });
+
+  if (!topCountries.length) {
+    list.innerHTML = `<div class="business-summary-empty">${exportLoadError || "국가별 수출 데이터를 불러오는 중입니다."}</div>`;
+    return;
+  }
+
+  list.innerHTML = `
+    <article class="export-country-top-card">
+      <div class="business-summary-caption">최근 수치 ${periodLabel}</div>
+      <div class="export-country-top-layout">
+        <div class="investment-pie" style="--pie-fill:${segments.join(", ")};"></div>
+        <div class="export-country-top-legend">
           ${topCountries
             .map(
-              (item) => `
-                <div class="startup-metric investment-metric" style="--investment-accent:${item.color};">
-                  <div class="startup-kicker investment-kicker">${item.name}</div>
-                  <div class="startup-value investment-value">${formatExportAmount(item.value)}${item.share === null ? "" : ` <span class="sme-value-unit">(비중: ${formatNumber(item.share, 1)}%)</span>`}</div>
-                  <div class="startup-subvalue">${formatYoYGrowth(item.value, item.previousValue)}</div>
+              (item, index) => `
+                <div class="export-country-top-row" style="--legend-color:${palette[index % palette.length]};">
+                  <span class="investment-pie-legend-swatch" style="--legend-color:${palette[index % palette.length]};"></span>
+                  <div class="export-country-rank">${index + 1}</div>
+                  <div class="export-country-name">${item.name}</div>
+                  <div class="export-country-value">${formatExportAmount(item.amount)}</div>
+                  <div class="export-country-share">비중 ${item.share === null ? "-" : `${formatNumber(item.share, 1)}%`}</div>
                 </div>
               `,
             )
             .join("")}
         </div>
-      </article>
-    `,
-    renderExportCountryPieChart({
-      title: "국가별 중소기업 수출비중",
-      items: pieItems,
-      totalValue: countryTotal,
+      </div>
+    </article>
+  `;
+}
+
+function renderExportCountrySelectors() {
+  const wrap = document.getElementById("export-country-selectors");
+  if (!wrap) {
+    return;
+  }
+
+  const topCountries = getExportTopCountries();
+  const topNames = topCountries.map((item) => item.name);
+  const validSelected = exportSelectedCountries.filter((name) => topNames.includes(name));
+  exportSelectedCountries = validSelected.length ? validSelected : topNames;
+
+  wrap.innerHTML = `
+    <div class="export-country-selector-title">국가 선택</div>
+    <div class="export-country-checkboxes">
+      ${topCountries
+        .map(
+          (item) => `
+            <label class="export-country-checkbox">
+              <input type="checkbox" value="${item.name}" ${exportSelectedCountries.includes(item.name) ? "checked" : ""} />
+              <span>${item.name}</span>
+            </label>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+
+  wrap.querySelectorAll("input[type='checkbox']").forEach((input) => {
+    input.onchange = () => {
+      exportSelectedCountries = Array.from(wrap.querySelectorAll("input[type='checkbox']:checked")).map((item) => item.value);
+      renderExportCountryCharts();
+    };
+  });
+}
+
+function renderExportCountryCharts() {
+  const wrap = document.getElementById("export-country-selected");
+  if (!wrap) {
+    return;
+  }
+
+  const rangeSeries = getExportCountryRangeSeries();
+  const record = rangeSeries[rangeSeries.length - 1] || getExportCountryRecord(getExportCountrySelectedKey());
+  const availableNames = getExportCountryNameSet(record);
+  const selected = exportSelectedCountries.filter((name) => availableNames.has(name));
+
+  if (!record || !selected.length) {
+    wrap.innerHTML = `<div class="business-summary-empty">선택한 국가가 없습니다.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = [
+    renderExportMultiCountryLineChart({
+      title: "국가별 수출 중소기업 수",
+      points: rangeSeries,
+      countries: selected,
+      valueSuffix: "기업 수",
+      type: "count",
+    }),
+    renderExportMultiCountryLineChart({
+      title: "국가별 중소기업 수출금액",
+      points: rangeSeries,
+      countries: selected,
+      valueSuffix: "수출금액",
+      type: "amount",
+    }),
+    renderExportMultiCountryYoYLineChart({
+      title: "국가별 수출 중소기업 수 전년동기대비 증가율",
+      points: rangeSeries,
+      countries: selected,
+      valueSuffix: "기업 수",
+    }),
+    renderExportMultiCountryYoYLineChart({
+      title: "국가별 중소기업 수출금액 전년동기대비 증가율",
+      points: rangeSeries,
+      countries: selected,
+      valueSuffix: "수출금액",
     }),
   ]
     .filter(Boolean)
     .join("");
+}
+
+function renderExportCountrySection() {
+  renderExportCountryTopList();
+  renderExportCountrySelectors();
+  renderExportCountryCharts();
 }
 
 function initStartupYearSelect() {
@@ -7387,32 +7933,9 @@ function initInvestmentSourceControls() {
 }
 
 function initExportDateSelect() {
-  const select = document.getElementById("export-date-select");
-  if (!select) {
-    return;
-  }
-
   if (!exportDates.length) {
-    select.innerHTML = "";
     return;
   }
-
-  select.innerHTML = exportDates
-    .map((key) => {
-      const record = getExportRecord(key);
-      return `<option value="${key}">${formatExportPeriod(record?.date)}</option>`;
-    })
-    .join("");
-  const currentValue = getExportSelectedKey();
-  select.value = exportDates.includes(currentValue) ? currentValue : exportDates[exportDates.length - 1];
-  select.onchange = () => {
-    const next = normalizeRangeSelection(exportDates, exportRangeStart, select.value, 5);
-    exportRangeStart = next.start;
-    exportRangeEnd = next.end;
-    initExportDateSelect();
-    renderExportSummary();
-    renderExportCharts();
-  };
 
   const normalized = syncRangeSliderPair({
     startId: "export-range-start",
@@ -7435,10 +7958,6 @@ function initExportDateSelect() {
       const next = normalizeRangeSelection(exportDates, exportRangeStart, exportRangeEnd, 5);
       exportRangeStart = next.start;
       exportRangeEnd = next.end;
-      const exportSelect = document.getElementById("export-date-select");
-      if (exportSelect) {
-        exportSelect.value = exportRangeEnd;
-      }
       initExportDateSelect();
       renderExportSummary();
       renderExportCharts();
@@ -7447,7 +7966,42 @@ function initExportDateSelect() {
 
   exportRangeStart = normalized.start;
   exportRangeEnd = normalized.end;
-  select.value = exportRangeEnd || select.value;
+}
+
+function initExportCountryControls() {
+  const keys = exportCountrySeries.map((item) => item.key);
+  if (!keys.length) {
+    return;
+  }
+
+  const normalized = syncRangeSliderPair({
+    startId: "export-country-range-start",
+    endId: "export-country-range-end",
+    labelId: "export-country-range-label",
+    trackId: "export-country-range-track",
+    startTextId: "export-country-range-start-text",
+    endTextId: "export-country-range-end-text",
+    keys,
+    startValue: exportCountryRangeStart,
+    endValue: exportCountryRangeEnd,
+    defaultCount: 5,
+    formatLabel: (key) => {
+      const record = getExportCountryRecord(key);
+      return formatExportPeriod(record?.date);
+    },
+    onChange: (start, end) => {
+      exportCountryRangeStart = start;
+      exportCountryRangeEnd = end;
+      const next = normalizeRangeSelection(keys, exportCountryRangeStart, exportCountryRangeEnd, 5);
+      exportCountryRangeStart = next.start;
+      exportCountryRangeEnd = next.end;
+      initExportCountryControls();
+      renderExportCountrySection();
+    },
+  });
+
+  exportCountryRangeStart = normalized.start;
+  exportCountryRangeEnd = normalized.end;
 }
 
 function initSmeYearSelect() {
@@ -7474,6 +8028,7 @@ function syncDashboardUi() {
   initInvestmentBreakdownControls();
   initInvestmentSourceControls();
   initExportDateSelect();
+  initExportCountryControls();
 
   const startupYearSelect = document.getElementById("startup-year-select");
   if (startupYearSelect) {
@@ -7507,6 +8062,7 @@ function syncDashboardUi() {
   renderInvestmentCharts();
   renderExportSummary();
   renderExportCharts();
+  renderExportCountrySection();
 }
 
 function hydrateDashboardFromCache() {
@@ -7697,6 +8253,7 @@ async function loadSmeData() {
     initLoanYearSelect();
     initInvestmentDateSelect();
     initExportDateSelect();
+    initExportCountryControls();
     renderSmeData();
     renderSmeCharts();
     renderStartupSummary();
@@ -7721,6 +8278,7 @@ async function loadSmeData() {
     renderInvestmentCharts();
     renderExportSummary();
     renderExportCharts();
+    renderExportCountrySection();
   }
 }
 

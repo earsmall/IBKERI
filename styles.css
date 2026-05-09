@@ -878,6 +878,196 @@ h2 {
   height: 100%;
 }
 
+#export-charts {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#export-charts .startup-chart-card.business-chart-card {
+  grid-column: auto;
+}
+
+.export-country-section {
+  display: grid;
+  gap: 14px;
+  margin-top: 40px;
+  min-width: 0;
+}
+
+.export-country-heading {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-align: center;
+}
+
+.export-country-range-controls {
+  margin-top: 0;
+}
+
+.export-country-top-list,
+.export-country-selected {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.export-country-selected .startup-chart-card.business-chart-card {
+  grid-column: auto;
+}
+
+.export-country-top-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(241, 248, 255, 0.98));
+  box-shadow: 0 10px 24px rgba(44, 123, 229, 0.06);
+}
+
+.export-country-top-layout {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.export-country-top-card .investment-pie {
+  width: 132px;
+  height: 132px;
+}
+
+.export-country-top-legend {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+
+.export-country-top-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(80px, 1fr) minmax(130px, auto) minmax(72px, auto);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px 0;
+  border-top: 1px solid rgba(27, 77, 132, 0.08);
+}
+
+.export-country-top-row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.export-country-top-row:last-child {
+  padding-bottom: 0;
+}
+
+.export-country-rank {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(44, 123, 229, 0.1);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.export-country-name {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.export-country-value {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 900;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.export-country-value .sme-value-unit {
+  white-space: nowrap;
+}
+
+.export-country-share {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.export-country-selectors {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.export-country-selector-title {
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.export-country-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.export-country-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 7px 10px;
+  border: 1px solid rgba(44, 123, 229, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.export-country-checkbox input {
+  accent-color: var(--accent);
+}
+
+.export-country-line-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.export-country-line-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.export-country-line-legend-item::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--legend-color);
+}
+
 .management-grid {
   display: grid;
   gap: 18px;
@@ -2777,9 +2967,32 @@ h2 {
     grid-column: 2;
   }
 
+  .business-panel-layout.export-panel-layout {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+
+  .export-panel-layout #export-charts {
+    grid-column: 2 / 10;
+  }
+
+  .export-country-section {
+    width: 80%;
+    margin-right: auto;
+    margin-left: auto;
+  }
+
+  .export-country-selected {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .business-panel-charts--split {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
+  }
+
+  #export-charts.business-panel-charts--split {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 18px;
   }
 
   .loan-charts-grid {
