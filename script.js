@@ -127,6 +127,8 @@ let smeData = [];
 let smeYears = [];
 let smeSelectedYear = "";
 let startupSeries = [];
+let startupRangeStart = "";
+let startupRangeEnd = "";
 let loanSeries = [];
 let delinquencySeries = [];
 let loanYears = [];
@@ -4290,136 +4292,150 @@ function renderStartupSummary() {
   const shareText = current.techShare !== undefined && current.techShare !== null ? `${formatNumber(current.techShare, 1)}%` : "-";
   const startupGrowth = formatYoYGrowth(current.startupCount, previous?.startupCount);
   const techGrowth = formatYoYGrowth(current.techStartupCount, previous?.techStartupCount);
-  const topIndustryPalette = ["#d04a42", "#6f5bd3", "#2f8f6b", "#d4a72c", "#7d8796"];
-  const topIndustryMarkup = (current.topIndustries || [])
-    .map((item, index) => {
-      const previousValue = previous?.industries?.[item.industry];
-      return `
-        <div class="startup-metric investment-metric startup-topfive-item" style="--investment-accent:${topIndustryPalette[index % topIndustryPalette.length]};">
-          <div class="startup-kicker investment-kicker startup-topfive-name">${item.industry}</div>
-          <div class="startup-value investment-value startup-topfive-value">${formatManCount(item.value || 0)} <span class="sme-value-unit">(비중: ${formatStartupIndustryShare(item.value, current.startupCount)})</span></div>
-          <div class="startup-subvalue">${formatYoYGrowth(item.value, previousValue) || '<span class="startup-delta">(전년대비 0.0%)</span>'}</div>
-        </div>
-      `;
-    })
-    .join("");
-  const startupChartMarkup = renderStartupBarChart({
-    title: "창업기업 수 최근 3년 추이",
-    key: "startupCount",
-    type: "count",
-    colorClass: "is-blue",
-    colorValue: "#2c7be5",
-  });
-  const techStartupChartMarkup = renderStartupBarChart({
-    title: "기술기반업종 창업기업 수 최근 3년 추이",
-    key: "techStartupCount",
-    type: "count",
-    colorClass: "is-sky",
-    colorValue: "#59a7ff",
-  });
-  const techShareChartMarkup = renderStartupLineChart({
-    title: "기술기반업종 비중 최근 3년 추이",
-    key: "techShare",
-  });
-
   summary.innerHTML = `
-    <section class="startup-section-block">
+    <section class="startup-section-block startup-overview-section">
       <div class="section-head section-head-secondary">
         <div>
           <h2>창업기업 수</h2>
+          <p class="section-subcopy section-subcopy--center">자료: 중소벤처기업부 《창업기업동향》</p>
         </div>
       </div>
-      <article class="startup-summary-card">
-        <div class="startup-summary-grid">
-          <div class="startup-metric">
-            <div class="startup-kicker">${current.year}년 전체 창업기업 수</div>
-            <div class="startup-value">${formatManCount(current.startupCount || 0)}</div>
-            <div class="startup-subvalue">${startupGrowth || '<span class="startup-delta">(전년대비 0.0%)</span>'}</div>
+      <div class="startup-overview-summary">
+        <article class="startup-summary-card">
+          <div class="startup-summary-grid">
+            <div class="startup-metric">
+              <div class="startup-kicker">${current.year}년 전체 창업기업 수</div>
+              <div class="startup-value">${formatManCount(current.startupCount || 0)}</div>
+              <div class="startup-subvalue">${startupGrowth || '<span class="startup-delta">(전년대비 0.0%)</span>'}</div>
+            </div>
           </div>
-        </div>
-      </article>
-      ${startupChartMarkup}
-    </section>
-    <section class="startup-section-block">
-      <div class="section-head section-head-secondary">
-        <div>
-          <h2>기술기반업종 창업</h2>
-        </div>
-      </div>
-      <article class="startup-summary-card">
-        <div class="startup-summary-grid">
-          <div class="startup-metric">
-            <div class="startup-kicker">${current.year}년 기술기반업종 창업기업 수</div>
-            <div class="startup-value">${formatManCount(current.techStartupCount || 0)}</div>
-            <div class="startup-subvalue">${techGrowth || '<span class="startup-delta">(전년대비 0.0%)</span>'}</div>
-            <div class="startup-subvalue">전체 창업기업 수 대비 비중: <span class="startup-share-value">${shareText}</span></div>
+        </article>
+        <article class="startup-summary-card">
+          <div class="startup-summary-grid">
+            <div class="startup-metric">
+              <div class="startup-kicker">${current.year}년 기술기반업종 창업기업 수</div>
+              <div class="startup-value">${formatManCount(current.techStartupCount || 0)}</div>
+              <div class="startup-subvalue">${techGrowth || '<span class="startup-delta">(전년대비 0.0%)</span>'}</div>
+              <div class="startup-subvalue">전체 창업기업 수 대비 비중: <span class="startup-share-value">${shareText}</span></div>
+            </div>
           </div>
-        </div>
-      </article>
-      ${techStartupChartMarkup}
-      ${techShareChartMarkup}
-    </section>
-    <section class="startup-section-block">
-      <div class="section-head section-head-secondary">
-        <div>
-          <h2>업종별 창업 비중 Top-5</h2>
-        </div>
+        </article>
       </div>
-      <article class="startup-summary-card">
-        <div class="startup-summary-grid">
-          ${topIndustryMarkup || `<div class="startup-subvalue">상위 5개 업종 데이터를 계산할 수 없습니다.</div>`}
-        </div>
-      </article>
     </section>
   `;
 }
 
 function getStartupSelectedYear() {
-  return document.getElementById("startup-year-select")?.value || startupSeries[startupSeries.length - 1]?.year || "";
+  return startupRangeEnd || startupSeries[startupSeries.length - 1]?.year || "";
 }
 
-function getFilteredStartupSeries(windowSize = 5) {
-  const selectedYear = getStartupSelectedYear();
-  const selectedIndex = startupSeries.findIndex((item) => item.year === selectedYear);
-  if (selectedIndex < 0) {
-    return startupSeries.slice(-windowSize);
+function getFilteredStartupSeries() {
+  if (!startupSeries.length) {
+    return [];
   }
 
-  const startIndex = Math.max(0, selectedIndex - (windowSize - 1));
-  return startupSeries.slice(startIndex, selectedIndex + 1);
+  const keys = startupSeries.map((item) => item.year);
+  const normalized = normalizeRangeSelection(keys, startupRangeStart, startupRangeEnd, 5);
+  return startupSeries.filter((item) => item.year >= normalized.start && item.year <= normalized.end);
 }
 
-function renderStartupBarChart({ title, key, type, colorClass, colorValue }) {
-  const filteredSeries = getFilteredStartupSeries(3);
+function renderStartupTrendLineChart({ title, key, type = "count", colorValue = "#2c7be5" }) {
+  const filteredSeries = getFilteredStartupSeries();
 
   if (!filteredSeries.length) {
     return "";
   }
 
   const values = filteredSeries.map((item) => item[key] ?? 0);
-  const maxValue = Math.max(...values, 1);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const range = maxValue - minValue || 1;
+  const width = 320;
+  const height = 150;
+  const paddingX = 26;
+  const paddingTop = 28;
+  const paddingBottom = 34;
+  const usableWidth = width - paddingX * 2;
+  const usableHeight = height - paddingTop - paddingBottom;
+  const formatValue = (value) => (
+    type === "share"
+      ? `${formatNumber(value, 1)}%`
+      : formatStartupMetric(value, type).replace(/<[^>]+>/g, "")
+  );
+
+  const points = filteredSeries.map((item, index) => {
+    const x =
+      filteredSeries.length === 1
+        ? width / 2
+        : paddingX + (usableWidth / (filteredSeries.length - 1)) * index;
+    const value = item[key] ?? 0;
+    const y = paddingTop + (1 - (value - minValue) / range) * usableHeight;
+    return { x, y, value, year: item.year };
+  });
+  const minPoint = points.reduce((best, point) => point.value < best.value ? point : best, points[0]);
+  const maxPoint = points.reduce((best, point) => point.value > best.value ? point : best, points[0]);
+  const labelKeys = new Set([
+    points[0]?.year,
+    points[points.length - 1]?.year,
+    minPoint?.year,
+    maxPoint?.year,
+  ]);
+
+  const path = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ");
 
   return `
-    <article class="startup-chart-card">
+    <article class="startup-chart-card startup-chart-card--compact-line">
       <div class="startup-chart-head">
         <div class="startup-chart-title">${title}</div>
       </div>
-      <div class="startup-bars" style="--bar-count:${filteredSeries.length};">
-        ${filteredSeries
-          .map((item) => {
-            const value = item[key] ?? 0;
-            const barHeight = Math.max(8, Math.round((value / maxValue) * 120));
-            return `
-              <div class="startup-bar-item">
-                <div class="startup-bar-value">${formatStartupMetric(value, type)}</div>
-                <div class="startup-bar-track">
-                  <div class="startup-bar ${colorClass}" style="height:${barHeight}px; --bar-color:${colorValue};"></div>
-                </div>
-                <div class="startup-bar-label">${item.year}</div>
-              </div>
-            `;
-          })
-          .join("")}
+      <div class="startup-line-chart startup-line-chart--compact" style="--startup-line-color:${colorValue};">
+        <div class="startup-line-tooltip" hidden>
+          <div class="startup-line-tooltip-label"></div>
+          <div class="startup-line-tooltip-value"></div>
+        </div>
+        <svg class="startup-line-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <line class="startup-line-grid" x1="${paddingX}" y1="${height - paddingBottom}" x2="${width - paddingX}" y2="${height - paddingBottom}"></line>
+          <path class="startup-line-path" d="${path}"></path>
+          ${points
+            .filter((point) => labelKeys.has(point.year))
+            .map(
+              (point) => `
+                <text class="startup-line-value" x="${point.x}" y="${Math.max(12, point.y - 10)}">${formatValue(point.value)}</text>
+                <circle class="startup-line-point" cx="${point.x}" cy="${point.y}" r="4.4"></circle>
+              `,
+            )
+            .join("")}
+          ${points
+            .filter((point) => !labelKeys.has(point.year))
+            .map((point) => `<circle class="startup-line-point" cx="${point.x}" cy="${point.y}" r="4.4"></circle>`)
+            .join("")}
+          ${points
+            .map(
+              (point) => `
+                <line class="startup-line-axis-tick" x1="${point.x}" y1="${height - paddingBottom}" x2="${point.x}" y2="${height - paddingBottom + 5}"></line>
+                <text class="startup-line-axis-label" x="${point.x}" y="${height - 6}" text-anchor="middle">${String(point.year).slice(-2)}</text>
+              `,
+            )
+            .join("")}
+          ${points
+            .map(
+              (point) => `
+                <circle
+                  class="startup-line-hit"
+                  cx="${point.x}"
+                  cy="${point.y}"
+                  r="12"
+                  tabindex="0"
+                  data-tooltip-label="${point.year}년"
+                  data-tooltip-value="${formatValue(point.value)}"
+                  aria-label="${point.year}년 ${formatValue(point.value)}"
+                ></circle>
+              `,
+            )
+            .join("")}
+        </svg>
       </div>
     </article>
   `;
@@ -4435,7 +4451,7 @@ function renderStartupTopIndustryChart() {
   }
   const palette = ["#d04a42", "#6f5bd3", "#2f8f6b", "#d4a72c", "#7d8796"];
   const topItems = topIndustries.map((item, index) => ({
-    name: item.industry,
+    name: formatStartupIndustryName(item.industry),
     value: item.value,
     color: palette[index % palette.length],
   }));
@@ -4451,6 +4467,12 @@ function renderStartupTopIndustryChart() {
     items: pieItems,
     totalValue,
   });
+}
+
+function formatStartupIndustryName(name) {
+  return name === "협회 및 단체 수리 및 기타 개인 서비스업"
+    ? "협회·기타 개인 서비스"
+    : name;
 }
 
 function renderStartupIndustryPieChart({ title, items, totalValue }) {
@@ -4472,13 +4494,13 @@ function renderStartupIndustryPieChart({ title, items, totalValue }) {
   });
 
   return `
-    <article class="startup-chart-card">
+    <article class="startup-chart-card startup-industry-pie-card">
       <div class="startup-chart-head">
         <div class="startup-chart-title">${title}</div>
       </div>
       <div class="investment-pie-layout">
         <div class="investment-pie" style="--pie-fill:${segments.join(", ")};"></div>
-        <div class="investment-pie-legend">
+        <div class="investment-pie-legend investment-pie-legend--two-col">
           ${validItems
             .map(
               (item) => `
@@ -4496,8 +4518,36 @@ function renderStartupIndustryPieChart({ title, items, totalValue }) {
   `;
 }
 
+function renderStartupIndustrySummaryCard() {
+  const selectedYear = getStartupSelectedYear();
+  const currentIndex = startupSeries.findIndex((item) => item.year === selectedYear);
+  const current = currentIndex >= 0 ? startupSeries[currentIndex] : startupSeries[startupSeries.length - 1];
+  const previous = currentIndex > 0 ? startupSeries[currentIndex - 1] : null;
+  const topIndustryPalette = ["#d04a42", "#6f5bd3", "#2f8f6b", "#d4a72c", "#7d8796"];
+  const topIndustryMarkup = (current?.topIndustries || [])
+    .map((item, index) => {
+      const previousValue = previous?.industries?.[item.industry];
+      return `
+        <div class="startup-metric investment-metric startup-topfive-item" style="--investment-accent:${topIndustryPalette[index % topIndustryPalette.length]};">
+          <div class="startup-kicker investment-kicker startup-topfive-name">${formatStartupIndustryName(item.industry)}</div>
+          <div class="startup-value investment-value startup-topfive-value">${formatManCount(item.value || 0)} <span class="sme-value-unit">(비중: ${formatStartupIndustryShare(item.value, current.startupCount)})</span></div>
+          <div class="startup-subvalue startup-industry-yoy">${formatYoYGrowth(item.value, previousValue) || '<span class="startup-delta">(전년대비 0.0%)</span>'}</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <article class="startup-summary-card startup-industry-summary-card">
+      <div class="startup-summary-grid startup-industry-summary-grid">
+        ${topIndustryMarkup || `<div class="startup-subvalue">상위 5개 업종 데이터를 계산할 수 없습니다.</div>`}
+      </div>
+    </article>
+  `;
+}
+
 function renderStartupLineChart({ title, key }) {
-  const filteredSeries = getFilteredStartupSeries(3);
+  const filteredSeries = getFilteredStartupSeries();
 
   if (!filteredSeries.length) {
     return "";
@@ -4560,7 +4610,57 @@ function renderStartupCharts() {
   if (!charts) {
     return;
   }
-  charts.innerHTML = startupSeries.length ? renderStartupTopIndustryChart() : "";
+  if (!startupSeries.length) {
+    charts.innerHTML = "";
+    return;
+  }
+
+  charts.innerHTML = `
+    <div class="section-head-actions section-head-actions--center startup-range-controls">
+      <div class="business-range-controls">
+        <div class="business-range-label" id="startup-range-label"></div>
+        <div class="dual-range-wrap" id="startup-range-track">
+          <input id="startup-range-start" class="range-slider range-slider--start" type="range" />
+          <input id="startup-range-end" class="range-slider range-slider--end" type="range" />
+        </div>
+        <div class="dual-range-meta">
+          <span id="startup-range-start-text"></span>
+          <span id="startup-range-end-text"></span>
+        </div>
+      </div>
+    </div>
+    <section class="startup-main-chart-grid">
+      ${renderStartupTrendLineChart({
+        title: "창업기업 수 추이",
+        key: "startupCount",
+        type: "count",
+        colorValue: "#2c7be5",
+      })}
+      ${renderStartupTrendLineChart({
+        title: "기술기반업종 창업기업 수 추이",
+        key: "techStartupCount",
+        type: "count",
+        colorValue: "#d04a42",
+      })}
+      ${renderStartupTrendLineChart({
+        title: "기술기반업종 비중 추이",
+        key: "techShare",
+        type: "share",
+        colorValue: "#2f8f6b",
+      })}
+    </section>
+    <section class="startup-section-block startup-chart-section startup-industry-chart-section">
+      <div class="section-head section-head-secondary">
+        <div>
+          <h2>업종별 창업</h2>
+        </div>
+      </div>
+      ${renderStartupIndustrySummaryCard()}
+      ${renderStartupTopIndustryChart()}
+    </section>
+  `;
+  initStartupRangeControls();
+  bindLineChartTooltips(charts);
 }
 
 function getBusinessSelectedKey() {
@@ -7765,19 +7865,36 @@ function renderExportCountrySection() {
 }
 
 function initStartupYearSelect() {
-  const select = document.getElementById("startup-year-select");
-  if (!select) {
-    return;
-  }
-  if (!startupSeries.length) {
-    select.innerHTML = "";
-    return;
-  }
+  initStartupRangeControls();
+}
 
-  select.innerHTML = startupSeries
-    .map((item) => `<option value="${item.year}">${item.year}</option>`)
-    .join("");
-  select.value = startupSeries[startupSeries.length - 1].year;
+function initStartupRangeControls() {
+  const keys = startupSeries.map((item) => item.year);
+  const normalized = syncRangeSliderPair({
+    startId: "startup-range-start",
+    endId: "startup-range-end",
+    labelId: "startup-range-label",
+    trackId: "startup-range-track",
+    startTextId: "startup-range-start-text",
+    endTextId: "startup-range-end-text",
+    keys,
+    startValue: startupRangeStart,
+    endValue: startupRangeEnd,
+    defaultCount: 5,
+    formatLabel: (key) => `${key}년`,
+    labelPrefix: "기간",
+    onChange: (start, end) => {
+      const next = normalizeRangeSelection(keys, start, end, 5);
+      startupRangeStart = next.start;
+      startupRangeEnd = next.end;
+      initStartupRangeControls();
+      renderStartupSummary();
+      renderStartupCharts();
+    },
+  });
+
+  startupRangeStart = normalized.start;
+  startupRangeEnd = normalized.end;
 }
 
 function initBusinessDateSelect() {
@@ -8038,14 +8155,6 @@ function syncDashboardUi() {
   initInvestmentSourceControls();
   initExportDateSelect();
   initExportCountryControls();
-
-  const startupYearSelect = document.getElementById("startup-year-select");
-  if (startupYearSelect) {
-    startupYearSelect.onchange = () => {
-      renderStartupSummary();
-      renderStartupCharts();
-    };
-  }
 
   renderSmeData();
   renderSmeCharts();
