@@ -1252,6 +1252,10 @@ function parseProductionRows(rows) {
   rows.forEach((row) => {
     const key = String(row?.PRD_DE || row?.prd_de || "").trim();
     const value = parseNumeric(row?.DT ?? row?.dt ?? row?.DATA_VALUE ?? row?.data_value ?? row?.value);
+    const periodType = String(row?.PRD_SE || row?.prd_se || "").trim().toUpperCase();
+    if (periodType && periodType !== "Q") {
+      return;
+    }
     const date = parseQuarterPeriod(key);
 
     if (!key || !date || Number.isNaN(value)) {
