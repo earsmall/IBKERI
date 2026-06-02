@@ -57,6 +57,11 @@ PERIOD_LABELS = {
 
 ANNUAL_CODES = {"Y", "A"}
 
+FULL_HISTORY_START_PERIODS = {
+    "DT_1F02007": "201501",
+    "DT_1KC2022": "201501",
+}
+
 GOOGLE_SHEET_DEFAULT_DOC_ID = "1fNiuZjbvbH7hjomQqXjAAxt6GE_b_X-_zuQlzE5p8YY"
 
 
@@ -185,8 +190,21 @@ def ensure_output_fields(url: str, required: tuple[str, ...] = ("NM", "PRD_DE", 
     return urlunparse(parsed._replace(query=urlencode(params, safe="+.")))
 
 
+def ensure_full_history(url: str, tbl_id: str) -> str:
+    start_period = FULL_HISTORY_START_PERIODS.get(tbl_id)
+    if not start_period:
+        return url
+
+    parsed = urlparse(url)
+    params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    params.pop("newEstPrdCnt", None)
+    params["startPrdDe"] = start_period
+    params["endPrdDe"] = f"{date.today().year}04"
+    return urlunparse(parsed._replace(query=urlencode(params, safe="+.")))
+
+
 def fetch_rows(record: UrlRecord, label: str) -> list[dict[str, Any]]:
-    url = ensure_output_fields(record.url)
+    url = ensure_output_fields(ensure_full_history(record.url, record.tbl_id))
     with urlopen(url, timeout=45, context=SSL_CONTEXT) as response:
         payload = json.load(response)
     if isinstance(payload, dict) and payload.get("err"):
@@ -477,6 +495,8 @@ def update_json_file(filename: str, payload_rows: dict[str, list[dict[str, Any]]
         if key in {"productionRows", "serviceProductionRows"}:
             old_rows = [row for row in old_rows if str(row.get("PRD_SE", "")).strip().upper() == "Q"]
         merged = merge_rows(old_rows, rows)
+        if key in {"productionRows", "serviceProductionRows"}:
+            merged = sorted(merged, key=lambda row: str(row.get("PRD_DE", "")).strip())
         changed_by_key[key] = canonical_json(old_rows) != canonical_json(merged)
         payload[key] = merged
         latest_periods[key] = latest_period(merged)

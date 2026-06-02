@@ -1290,6 +1290,18 @@ function parseProductionSnapshot(snapshot, itemName) {
   }));
 }
 
+function mergeProductionRows(snapshot, itemName, rows) {
+  const merged = new Map(
+    parseProductionSnapshot(snapshot, itemName).map((item) => [item.key, item]),
+  );
+
+  parseProductionRows(rows).forEach((item) => {
+    merged.set(item.key, item);
+  });
+
+  return [...merged.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+
 function parseOperationRows(rows) {
   if (!Array.isArray(rows)) {
     return [];
@@ -1472,10 +1484,11 @@ async function loadBusinessCompositeData() {
 async function loadProductionData() {
   try {
     const payload = await loadBusinessJsonPayload();
-    const rows = parseProductionRows(
+    return mergeProductionRows(
+      PRODUCTION_SNAPSHOT,
+      "중소기업생산지수",
       readStaticRows(payload, "productionRows", "실물경기 JSON 데이터 형식을 확인해 주세요."),
     );
-    return rows.length ? rows : parseProductionSnapshot(PRODUCTION_SNAPSHOT, "중소기업생산지수");
   } catch (error) {
     return parseProductionSnapshot(PRODUCTION_SNAPSHOT, "중소기업생산지수");
   }
@@ -1484,10 +1497,11 @@ async function loadProductionData() {
 async function loadServiceProductionData() {
   try {
     const payload = await loadBusinessJsonPayload();
-    const rows = parseProductionRows(
+    return mergeProductionRows(
+      SERVICE_PRODUCTION_SNAPSHOT,
+      "중소기업서비스업생산지수",
       readStaticRows(payload, "serviceProductionRows", "실물경기 JSON 데이터 형식을 확인해 주세요."),
     );
-    return rows.length ? rows : parseProductionSnapshot(SERVICE_PRODUCTION_SNAPSHOT, "중소기업서비스업생산지수");
   } catch (error) {
     return parseProductionSnapshot(SERVICE_PRODUCTION_SNAPSHOT, "중소기업서비스업생산지수");
   }
